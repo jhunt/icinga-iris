@@ -59,7 +59,7 @@ static void iris_noop(const char *fmt, ...)
 
 static int iris_read(int fd, char *buf, size_t *len)
 {
-	size_t n;
+	ssize_t n;
 	char *off = buf;
 
 	errno = 0;

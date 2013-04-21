@@ -7,13 +7,20 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include <string.h>
-#include <strings.h>
 #include <stdint.h>
+#include <string.h>
+
+#include <ctype.h>
+#include <time.h>
+
 #include <signal.h>
 #include <errno.h>
 #include <unistd.h>
+
 #include <netdb.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
 
 #define IRIS_DEFAULT_PORT          5668
 #define IRIS_DEFAULT_PORT_STRING  "5668"

@@ -215,9 +215,12 @@ int main(int argc, char **argv)
 		nsent++;
 	}
 	close(sock);
+	alarm(0);
+
 	if (!OPTS.quiet) {
 		printf("sent %d results to host\n", nsent);
 	}
-	alarm(0);
+
+	free(packets);
 	return 0;
 }

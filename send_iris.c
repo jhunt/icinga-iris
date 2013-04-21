@@ -1,8 +1,4 @@
 #include "iris.h"
-#include <ctype.h>
-#include <time.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
 
 #define MAX_LINE 8192
 
@@ -10,11 +6,13 @@ struct {
 	char *host;
 	int   port;
 	int   timeout;
+	int   quiet;
 	char  delim[2];
 } OPTS = {
 	.host    = NULL,
 	.port    = IRIS_DEFAULT_PORT,
 	.timeout = IRIS_DEFAULT_TIMEOUT,
+	.quiet   = 0,
 	.delim   = "\t"
 };
 
@@ -54,11 +52,14 @@ int process_args(int argc, char **argv)
 {
 	int c;
 
-	free(OPTS.host);
-	OPTS.host = strdup("127.0.0.1");
-
-	while ((c = getopt(argc, argv, "H:p:t:h?")) != -1) {
+	while ((c = getopt(argc, argv, "qvH:p:t:h?")) != -1) {
 		switch (c) {
+		case 'q':
+			OPTS.quiet = 1;
+			break;
+		case 'v':
+			OPTS.quiet = 0;
+			break;
 		case 'H':
 			free(OPTS.host);
 			OPTS.host = strdup(optarg);
@@ -75,10 +76,32 @@ int process_args(int argc, char **argv)
 		case 'h':
 		case '?':
 			printf("USAGE: send_iris -H <host> [-p <port>] [-t <timeout>]\n");
+			printf("\n");
+			printf("  -h\n");
+			printf("      Show this informative help screen.\n");
+			printf("\n");
+			printf("  -H <hostname>\n");
+			printf("      IP or hostname of who we should submit results to.\n");
+			printf("      (this option is required)\n");
+			printf("\n");
+			printf("  -p <port>\n");
+			printf("      TCP port to connect to.\n");
+			printf("      Defaults to %d\n", IRIS_DEFAULT_PORT);
+			printf("\n");
+			printf("  -t <timeout>\n");
+			printf("      Connection timeout, in seconds.\n");
+			printf("      Defaults to %d\n", IRIS_DEFAULT_TIMEOUT);
+			printf("\n");
 			exit(0);
 			break;
 		}
 	}
+
+	if (!OPTS.host) {
+		fprintf(stderr, "Missing required -H option\n");
+		return 1;
+	}
+
 	return 0;
 }
 
@@ -156,12 +179,12 @@ int main(int argc, char **argv)
 
 	int sock = socket(AF_INET, SOCK_STREAM, 0);
 	if (sock < 0) {
-		fprintf(stderr, "failed to create a socket: %s", strerror(errno));
+		fprintf(stderr, "failed to create a socket: %s\n", strerror(errno));
 		exit(3);
 	}
 
 	if (connect(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
-		fprintf(stderr, "connection failed: %s", strerror(errno));
+		fprintf(stderr, "connection failed: %s\n", strerror(errno));
 		exit(2);
 	}
 
@@ -192,7 +215,9 @@ int main(int argc, char **argv)
 		nsent++;
 	}
 	close(sock);
-	fprintf(stderr, "sent %d results to host\n", nsent);
+	if (!OPTS.quiet) {
+		printf("sent %d results to host\n", nsent);
+	}
 	alarm(0);
 	return 0;
 }

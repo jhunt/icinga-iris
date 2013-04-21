@@ -4,3 +4,4 @@
 *.la
 .libs
 send_iris
+perf/*.out

@@ -1,0 +1,11 @@
+#!/bin/bash
+ROOT=$(dirname $0)
+MAX=${1:-240}; shift;
+for X in $(seq 1 $MAX); do
+	echo "RUN $X/$MAX @ $(date)"
+	echo "-------------------------------------------------------"
+	$ROOT/perft "$@"
+	echo "-------------------------------------------------------"
+	echo
+	echo
+done

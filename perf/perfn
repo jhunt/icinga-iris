@@ -7,4 +7,4 @@ TOTAL=$((LIMIT * N))
 
 echo "$(basename $0): $N/$LIMIT = $TOTAL@$CHUNK"
 seq 1 $N | xargs -n1 -I@ -P$N \
-	$ROOT/alertspam max $LIMIT $CHUNK $ROOT/../send_iris -q -H 127.0.0.1 -p 5668
+	$ROOT/alertspam max $LIMIT $CHUNK $ROOT/../send_iris -H 127.0.0.1 -p 5668 2>&1

@@ -2,10 +2,23 @@
 ROOT=$(dirname $0)
 MAX=${1:-240}; shift;
 for X in $(seq 1 $MAX); do
-	echo "RUN $X/$MAX @ $(date)"
+
+	TIME_WAIT=$(netstat -tn | grep TIME_WAIT | grep :5668 | wc -l)
+	while [[ $TIME_WAIT != 0 ]]; do
+		sleep 2
+		TIME_WAIT=$(netstat -tn | grep TIME_WAIT | grep :5668 | wc -l)
+	done
+
+	echo "RUN $X/$MAX"
+	echo "started at $(date)"
+	echo "+ ps -eo uid,pid,rss,vsz,%mem,%cpu,cmd | grep icinga"
+	ps -eo uid,pid,rss,vsz,%mem,%cpu,cmd | grep icinga
 	echo "-------------------------------------------------------"
 	$ROOT/perft "$@"
 	echo "-------------------------------------------------------"
+	echo "+ ps -eo uid,pid,rss,vsz,%mem,%cpu,cmd | grep icinga"
+	ps -eo uid,pid,rss,vsz,%mem,%cpu,cmd | grep icinga
+	echo "finished at $(date)"
 	echo
 	echo
 done

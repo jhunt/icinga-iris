@@ -21,20 +21,12 @@ sub spam
 sub nsca
 {
 	my ($res, @args) = @_;
-
-	open my $old_stdout, ">&STDOUT";
-	close STDOUT;
-
-	my $now = gettimeofday;
 	open NSCA, "|-", join(' ', @args);
 	for (@$res) {
-		print NSCA "$_ now:$now\n";
+		print NSCA "$_\n\x17";
 	}
-	print NSCA "\x17";
 	close NSCA;
-
 	@$res = ();
-	open STDOUT, ">&", $old_stdout;
 }
 
 my $mode = shift @ARGV;
@@ -67,9 +59,11 @@ if ($mode eq 'timed') {
 	my @results = ();
 	$start = gettimeofday;
 
+	my $host = $ENV{HOST_PREFIX} || "host$$";
+
 	TIME: for (my $i = 1; ; $i++) {
 		for (my $j = 1; $j <= 67; $j++) {
-			push @results, spam("host$$.$i", "service$j");
+			push @results, spam("$host.$i", "service$j");
 			$n++;
 
 			last TIME if $n >= $maxn;
@@ -78,6 +72,7 @@ if ($mode eq 'timed') {
 	}
 	nsca(\@results, @args) if @results;
 
+	$n = "$n/$maxn";
 }
 
 my $end = gettimeofday;

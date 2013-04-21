@@ -42,6 +42,15 @@ static int sendall(int fd, char *buf, int *len)
 	return n < 0 ? n : 0;
 }
 
+static int sink(int fd)
+{
+	char buf[512];
+	size_t n = 0;
+	while ((n = read(fd, buf, n)) > 0)
+		;
+	return n;
+}
+
 void alarm_handler(int sig)
 {
 	printf("Timed out after %d seconds\n", OPTS.timeout);
@@ -57,9 +66,11 @@ int process_args(int argc, char **argv)
 		case 'q':
 			OPTS.quiet = 1;
 			break;
+
 		case 'v':
 			OPTS.quiet = 0;
 			break;
+
 		case 'H':
 			free(OPTS.host);
 			OPTS.host = strdup(optarg);
@@ -177,6 +188,9 @@ int main(int argc, char **argv)
 		memcpy(&addr.sin_addr, he->h_addr, he->h_length);
 	}
 
+	signal(SIGALRM, alarm_handler);
+	alarm(OPTS.timeout);
+
 	int sock = socket(AF_INET, SOCK_STREAM, 0);
 	if (sock < 0) {
 		fprintf(stderr, "failed to create a socket: %s\n", strerror(errno));
@@ -188,8 +202,7 @@ int main(int argc, char **argv)
 		exit(2);
 	}
 
-	signal(SIGALRM, alarm_handler);
-	alarm(OPTS.timeout);
+	alarm(0);
 
 	for (i = 0; i < npackets; i++) {
 		time((time_t*)&packets[i].ts);
@@ -199,6 +212,7 @@ int main(int argc, char **argv)
 		packets[i].rc      = htons(packets[i].rc);
 		packets[i].crc32   = htonl(iris_crc32((char*)(&packets[i]), sizeof(struct pdu)));
 
+		alarm(OPTS.timeout);
 		len = sizeof(struct pdu);
 		if (sendall(sock, (char*)(&packets[i]), &len) < 0) {
 			fprintf(stderr, "error sending data to %s:%d\n", OPTS.host, OPTS.port);
@@ -213,7 +227,10 @@ int main(int argc, char **argv)
 			alarm(0); exit(3);
 		}
 		nsent++;
+		alarm(0);
 	}
+	shutdown(sock, SHUT_WR);
+	sink(sock);
 	close(sock);
 	alarm(0);
 

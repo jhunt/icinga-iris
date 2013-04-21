@@ -1,0 +1,9 @@
+#!/usr/bin/perl
+
+# cat17 - Standard cat with \x17 line terminators
+#
+# author:  James Hunt <jhunt@synacor.com>
+# created: 2013-04-20
+#
+
+while (<>) print "$_\x17";

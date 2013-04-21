@@ -3,3 +3,4 @@
 *.so
 *.la
 .libs
+send_iris

@@ -1,9 +1,0 @@
-#!/usr/bin/perl
-
-use Digest::SHA qw/sha512_hex/;
-$_=sha512_hex('Hammer Throw');
-m/^(.{64})(.{64})$/;
-print <<EOF;
-#define PDU_IV "$1" \\
-               "$2"
-EOF

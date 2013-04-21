@@ -1,0 +1,8 @@
+#!/bin/bash
+N=${1:-16}; shift
+LIMIT=${1:-9000}; shift
+CHUNK=${1:-1}; shift
+TOTAL=$((LIMIT * N))
+echo "$N/$LIMIT = $TOTAL@$CHUNK"
+seq 1 $N | xargs -n1 -I@ -P$N \
+	./alertspam max $LIMIT $CHUNK ../send_iris -q -H 127.0.0.1 -p 5668

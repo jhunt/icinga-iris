@@ -1,0 +1,7 @@
+#!/bin/bash
+N=${1:-16}; shift
+LIMIT=${1:-30}; shift
+
+echo "$N/$LIMIT"
+seq 1 $N | xargs -n1 -I@ -P$N \
+	./alertspam timed $LIMIT ../send_iris -q -H 127.0.0.1 -p 5668

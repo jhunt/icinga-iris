@@ -1,0 +1,85 @@
+#!/usr/bin/perl
+
+use Time::HiRes qw/gettimeofday/;
+
+sub spam
+{
+	my $bar1 = 0.75;
+	my $bar2 = 0.90;
+
+	my $stuff = join("\t", @_);
+
+	my $score = rand;
+	if ($rand < $bar1) {
+		return $stuff . "\t0\tOK - scored $score";
+	} elsif ($rand < $bar2) {
+		return $stuff . "\t1\tWARN - scored $score";
+	} else {
+		return $stuff . "\t2\tCRIT - scored $score";
+	}
+}
+sub nsca
+{
+	my ($res, @args) = @_;
+
+	open my $old_stdout, ">&STDOUT";
+	close STDOUT;
+
+	my $now = gettimeofday;
+	open NSCA, "|-", join(' ', @args);
+	for (@$res) {
+		print NSCA "$_ now:$now\n";
+	}
+	print NSCA "\x17";
+	close NSCA;
+
+	@$res = ();
+	open STDOUT, ">&", $old_stdout;
+}
+
+my $mode = shift @ARGV;
+my $start;
+my $n = 0;
+
+# ignore SIGPIPE 13
+$SIG{PIPE} = "IGNORE";
+
+if ($mode eq 'timed') {
+	my ($maxtime, @args) = @ARGV;
+	my $chunk = 1;
+	my @results = ();
+	$start = gettimeofday;
+
+	TIME: for (my $i = 1; ; $i++) {
+		for (my $j = 1; $j <= 67; $j++) {
+			push @results, spam("host$$.$i", "service$j");
+			$n++;
+
+			my $end = gettimeofday;
+			last TIME if $end - $start > $maxtime;
+			nsca(\@results, @args) if scalar @results >= $chunk;
+		}
+	}
+	nsca(\@results, @args) if @results;
+
+} else {
+	my ($maxn, $chunk, @args) = @ARGV;
+	my @results = ();
+	$start = gettimeofday;
+
+	TIME: for (my $i = 1; ; $i++) {
+		for (my $j = 1; $j <= 67; $j++) {
+			push @results, spam("host$$.$i", "service$j");
+			$n++;
+
+			last TIME if $n >= $maxn;
+			nsca(\@results, @args) if scalar @results >= $chunk;
+		}
+	}
+	nsca(\@results, @args) if @results;
+
+}
+
+my $end = gettimeofday;
+my $duration = $end - $start;
+print "$$:$n:$start:$end:$duration\n";

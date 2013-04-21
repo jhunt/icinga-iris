@@ -43,6 +43,7 @@ static void iris_log(const char *fmt, ...)
 	va_end(ap);
 
 	write_to_all_logs(buf, NSLOG_INFO_MESSAGE);
+	free(buf);
 }
 
 static void iris_noop(const char *fmt, ...)
@@ -220,15 +221,18 @@ static int iris_recv_data(int fd, struct pdu *pdu)
 	iris_debug("IRIS: reading from fd %d", fd);
 	if ((rc = iris_read(fd, raw, &len)) < 0) {
 		iris_log("IRIS: failed to read from fd %d: %s", fd, strerror(errno));
+		free(raw);
 		close(fd);
 		return -1;
 	}
 	if (len == 0) {
+		free(raw);
 		close(fd);
 		return -1;
 	}
 
 	memcpy(pdu, raw, len);
+	free(raw);
 	if (iris_pdu_unpack(pdu) != 0) {
 		iris_log("IRIS: discarding packet from fd %d", fd);
 		close(fd);
@@ -261,6 +265,7 @@ static int iris_recv_data(int fd, struct pdu *pdu)
 	res->finish_time = res->start_time;
 
 	add_check_result_to_list(res);
+	// Icinga is now responsible for malloc'd _res_ memory
 
 	return 0;
 }
@@ -270,7 +275,7 @@ static void* iris_daemon(void *udata)
 	int i, n;
 	int sockfd, epfd;
 	struct epoll_event event;
-	struct epoll_event *events;
+	struct epoll_event events[IRIS_MAXFD];
 
 	struct pdu data;
 
@@ -299,12 +304,9 @@ static void* iris_daemon(void *udata)
 				epfd, sockfd, strerror(errno));
 	}
 
-	// allocate return-value buffer
-	events = calloc(IRIS_MAXFD, sizeof(struct epoll_event));
-
 	// and loop
 	for (;;) {
-		n = epoll_wait(epfd, events, IRIS_MAXFD, 1);
+		n = epoll_wait(epfd, events, sizeof(events), 1);
 		if (n <= 0) continue;
 
 		iris_debug("IRIS: epoll gave us %d fds to work with", n);

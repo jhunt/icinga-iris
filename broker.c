@@ -72,7 +72,7 @@ static int iris_read(int fd, char *buf, size_t *len)
 	*len = off - buf;
 
 	if (n < 0 && errno == EAGAIN) return 0;
-	return n;
+	return *len;
 }
 
 static int iris_noblock(int fd)
@@ -219,54 +219,62 @@ static int iris_recv_data(int fd, struct pdu *pdu)
 	int rc;
 
 	iris_debug("IRIS: reading from fd %d", fd);
-	if ((rc = iris_read(fd, raw, &len)) < 0) {
-		iris_log("IRIS: failed to read from fd %d: %s", fd, strerror(errno));
-		free(raw);
-		close(fd);
-		return -1;
-	}
-	if (len == 0) {
-		free(raw);
-		close(fd);
-		return -1;
-	}
+	for (;;) {
+		if ((rc = iris_read(fd, raw, &len)) < 0) {
+			iris_log("IRIS: failed to read from fd %d: %s", fd, strerror(errno));
+			close(fd);
+			free(raw);
+			return -1;
+		}
 
-	memcpy(pdu, raw, len);
-	free(raw);
-	if (iris_pdu_unpack(pdu) != 0) {
-		iris_log("IRIS: discarding packet from fd %d", fd);
-		close(fd);
-		return -1;
-	}
+		if (rc == 0) break; // EAGAIN
 
-	iris_debug("IRIS: received result for v%d [%d] %s/%s (rc:%d) '%s'",
-		pdu->version, (uint32_t)pdu->ts, pdu->host, pdu->service, pdu->rc, pdu->output);
+		if (len == 0) {
+			iris_log("IRIS: read 0 bytes; closing fd %d", fd);
+			close(fd);
+			free(raw);
+			return -1;
+		}
 
-	check_result *res = malloc(sizeof(check_result));
-	init_check_result(res);
+		memcpy(pdu, raw, len);
+		if (iris_pdu_unpack(pdu) != 0) {
+			iris_log("IRIS: discarding packet from fd %d", fd);
+			close(fd);
+			free(raw);
+			return -1;
+		}
 
-	res->output_file    = NULL;
-	res->output_file_fd = -1;
+		iris_debug("IRIS: received result for v%d [%d] %s/%s (rc:%d) '%s'",
+			pdu->version, (uint32_t)pdu->ts, pdu->host, pdu->service, pdu->rc, pdu->output);
 
-	res->host_name = strdup(pdu->host);
-	if (strcmp(pdu->service, "HOST") != 0) {
+		check_result *res = malloc(sizeof(check_result));
+		init_check_result(res);
+
+		res->output_file    = NULL;
+		res->output_file_fd = -1;
+
+		res->host_name = strdup(pdu->host);
+		if (strcmp(pdu->service, "HOST") != 0) {
 		res->service_description = strdup(pdu->service);
-		res->object_check_type = SERVICE_CHECK;
+			res->object_check_type = SERVICE_CHECK;
+		}
+
+		res->output = strdup(pdu->output);
+
+		res->return_code = pdu->rc;
+		res->exited_ok = 1;
+		res->check_type = SERVICE_CHECK_PASSIVE;
+
+		res->start_time.tv_sec = pdu->ts;
+		res->start_time.tv_usec = 0;
+		res->finish_time = res->start_time;
+
+		add_check_result_to_list(res);
+		// Icinga is now responsible for malloc'd _res_ memory
+
+		iris_debug("IRIS DEBUG: submitted result to main process");
 	}
-
-	res->output = strdup(pdu->output);
-
-	res->return_code = pdu->rc;
-	res->exited_ok = 1;
-	res->check_type = SERVICE_CHECK_PASSIVE;
-
-	res->start_time.tv_sec = pdu->ts;
-	res->start_time.tv_usec = 0;
-	res->finish_time = res->start_time;
-
-	add_check_result_to_list(res);
-	// Icinga is now responsible for malloc'd _res_ memory
-
+	free(raw);
 	return 0;
 }
 

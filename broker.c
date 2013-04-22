@@ -73,11 +73,13 @@ static int iris_read(int fd, char *buf, size_t *len)
 		iris_debug("IRIS DEBUG: iris_read read in %d bytes\n", n);
 		 off += n;
 		*len -= n;
+
+		errno = 0;
 	}
 	iris_debug("IRIS DEBUG: iris_read read returned %d\n", n);
 	*len = off - buf;
 
-	if (n < 0) {
+	if (n <= 0) {
 		if (errno == EAGAIN) return 0;
 		return n;
 	}

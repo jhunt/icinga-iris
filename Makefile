@@ -2,6 +2,9 @@ CFLAGS := -Wall -Iicinga -g -O
 ifneq ($(DEBUG),)
 	CFLAGS += -DDEBUG
 endif
+ifneq ($(LIMITS),)
+	CFLAGS += -DDEBUG_LIMITS
+endif
 
 all: libiris.so send_iris
 libiris.so: iris.lo broker.lo

@@ -77,7 +77,10 @@ static int iris_read(int fd, char *buf, size_t *len)
 	iris_debug("IRIS DEBUG: iris_read read returned %d\n", n);
 	*len = off - buf;
 
-	if (n < 0 && errno == EAGAIN) return 0;
+	if (n < 0) {
+		if (errno == EAGAIN) return 0;
+		return n;
+	}
 	return *len;
 }
 
@@ -159,16 +162,20 @@ static int iris_accept(int sockfd, int epfd)
 
 	if (iris_noblock(connfd) < 0) {
 		iris_log("IRIS: failed to make new socket non-blocking: %s", strerror(errno));
+		iris_debug("IRIS DEBUG: closing fd %d", connfd);
 		close(connfd);
 		return -1;
 	}
 
-	iris_debug("IRIS DEBUG: accepted inbound connection on fd %d", connfd);
+	char addr[INET_ADDRSTRLEN];
+	inet_ntop(AF_INET, &(in_addr.sin_addr), addr, INET_ADDRSTRLEN);
+	iris_debug("IRIS DEBUG: accepted inbound connection from %s on fd %d", addr, connfd);
 
 	ev.data.fd = connfd;
 	ev.events = EPOLLIN | EPOLLET;
 	if (epoll_ctl(epfd, EPOLL_CTL_ADD, connfd, &ev) != 0) {
 		iris_log("IRIS: failed to inform epoll about new socket fd: %s", strerror(errno));
+		iris_debug("IRIS DEBUG: closing fd %d", connfd);
 		close(connfd);
 		return -1;
 	}
@@ -229,6 +236,7 @@ static int iris_recv_data(int fd, struct pdu *pdu)
 	for (;;) {
 		if ((rc = iris_read(fd, raw, &len)) < 0) {
 			iris_log("IRIS: failed to read from fd %d: %s", fd, strerror(errno));
+		iris_debug("IRIS DEBUG: closing fd %d", fd);
 			close(fd);
 			free(raw);
 			return -1;
@@ -237,7 +245,8 @@ static int iris_recv_data(int fd, struct pdu *pdu)
 		if (rc == 0) break; // EAGAIN
 
 		if (len == 0) {
-			iris_log("IRIS: read 0 bytes; closing fd %d", fd);
+			iris_log("IRIS: read 0 bytes from fd %d", fd);
+			iris_debug("IRIS DEBUG: closing fd %d", fd);
 			close(fd);
 			free(raw);
 			return -1;
@@ -246,7 +255,8 @@ static int iris_recv_data(int fd, struct pdu *pdu)
 		packets++;
 		memcpy(pdu, raw, len);
 		if (iris_pdu_unpack(pdu) != 0) {
-			iris_log("IRIS: discarding packet from fd %d", fd);
+			iris_log("IRIS: discarding bogus packet from fd %d", fd);
+			iris_debug("IRIS DEBUG: closing fd %d", fd);
 			close(fd);
 			free(raw);
 			return -1;
@@ -286,6 +296,7 @@ static int iris_recv_data(int fd, struct pdu *pdu)
 
 	if (packets == 0) {
 		iris_log("IRIS: received 0 bytes total from fd %d", fd);
+		iris_debug("IRIS DEBUG: closing fd %d", fd);
 		close(fd);
 		return -1;
 	}
@@ -304,6 +315,16 @@ static void* iris_daemon(void *udata)
 	iris_log("IRIS: starting up the iris daemon on *:%d", IRIS_DEFAULT_PORT);
 
 	iris_init_crc32();
+
+#ifdef DEBUG_LIMITS
+	struct rlimit lims;
+	getrlimit(RLIMIT_NOFILE, &lims);
+	lims.rlim_cur = 3072;
+	lims.rlim_max = 4096;
+	iris_log("IRIS: running under LIMITS mode; setting no_file limits to %d/%d",
+		lims.rlim_cur, lims.rlim_max);
+	setrlimit(RLIMIT_NOFILE, &lims);
+#endif
 
 	// bind and listen on *:5667
 	sockfd = iris_bind(NULL, IRIS_DEFAULT_PORT_STRING);
@@ -334,7 +355,8 @@ static void* iris_daemon(void *udata)
 		iris_debug("IRIS DEBUG: epoll gave us %d fds to work with", n);
 
 		for (i = 0; i < n; i++) {
-			iris_debug("IRIS DEBUG: activity on %d:%s%s%s", events[i].data.fd,
+			iris_debug("IRIS DEBUG: activity on %d: %04x =%s%s%s%s",
+					events[i].data.fd, events[i].events,
 					(events[i].events & EPOLLERR   ? " EPOLLERR"   : ""),
 					(events[i].events & EPOLLHUP   ? " EPOLLHUP"   : ""),
 					(events[i].events & EPOLLRDHUP ? " EPOLLRDHUP" : ""),

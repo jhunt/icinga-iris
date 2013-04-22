@@ -1,5 +1,7 @@
 #!/bin/bash
 ROOT=$(dirname $0)
+SEND_IRIS=$ROOT/../send_iris
+
 N=${1:-16}; shift
 LIMIT=${1:-9000}; shift
 CHUNK=${1:-1}; shift
@@ -7,4 +9,4 @@ TOTAL=$((LIMIT * N))
 
 echo "$(basename $0): $N/$LIMIT = $TOTAL@$CHUNK"
 seq 1 $N | xargs -n1 -I@ -P$N \
-	$ROOT/alertspam max $LIMIT $CHUNK $ROOT/../send_iris -H 127.0.0.1 -p 5668 2>&1
+	$ROOT/alertspam max $LIMIT $CHUNK $SEND_IRIS -H 127.0.0.1 -p 5667 -q 2>&1

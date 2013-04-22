@@ -1,8 +1,10 @@
 #!/bin/bash
 ROOT=$(dirname $0)
+SEND_IRIS=$ROOT/../send_iris
+
 N=${1:-16}; shift
 LIMIT=${1:-30}; shift
 
 echo "$(basename $0): $N/$LIMIT"
 seq 1 $N | xargs -n1 -I@ -P$N \
-	$ROOT/alertspam timed $LIMIT $ROOT/../send_iris -q -H 127.0.0.1 -p 5668
+	$ROOT/alertspam timed $LIMIT $SEND_IRIS -H 127.0.0.1 -p 5667 -q 2>&1

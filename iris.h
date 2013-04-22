@@ -36,8 +36,8 @@
 struct pdu {
 	uint32_t crc32;
 	uint32_t ts;
-	int16_t  version;
-	int16_t  rc;
+	uint16_t version;
+	uint16_t rc;
 	char     host[IRIS_PDU_HOST_LEN];
 	char     service[IRIS_PDU_SERVICE_LEN];
 	char     output[IRIS_PDU_OUTPUT_LEN];

@@ -18,4 +18,4 @@ clean:
 benchmark:
 	./perf/longhaul 20 16 30 | tee  perf/long.20.16.30.out
 	./perf/longhaul 20 32 30 | tee  perf/long.20.32.30.out
-	./perf/longhaul 20 64 20 | tee  perf/long.20.64.30.out
+	./perf/longhaul 20 64 30 | tee  perf/long.20.64.30.out

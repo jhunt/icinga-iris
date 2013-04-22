@@ -18,6 +18,12 @@
    will return.  This is *not* the max of pollable FDs. */
 #define IRIS_MAXFD 64
 
+/* Define EPOLLRDHUP ourselves, if the kernel didn't do it already.
+   see http://sourceware.org/bugzilla/show_bug.cgi?id=5040 */
+#ifndef EPOLLRDHUP
+#  define EPOLLRDHUP 0x2000
+#endif
+
 NEB_API_VERSION(CURRENT_NEB_API_VERSION);
 
 /*************************************************************/
@@ -217,6 +223,7 @@ static int iris_recv_data(int fd, struct pdu *pdu)
 	size_t len = sizeof(struct pdu);
 	char *raw = malloc(len);
 	int rc;
+	int packets = 0;
 
 	iris_debug("IRIS DEBUG: reading from fd %d", fd);
 	for (;;) {
@@ -236,6 +243,7 @@ static int iris_recv_data(int fd, struct pdu *pdu)
 			return -1;
 		}
 
+		packets++;
 		memcpy(pdu, raw, len);
 		if (iris_pdu_unpack(pdu) != 0) {
 			iris_log("IRIS: discarding packet from fd %d", fd);
@@ -275,6 +283,12 @@ static int iris_recv_data(int fd, struct pdu *pdu)
 		iris_debug("IRIS DEBUG: submitted result to main process");
 	}
 	free(raw);
+
+	if (packets == 0) {
+		iris_log("IRIS: received 0 bytes total from fd %d", fd);
+		close(fd);
+		return -1;
+	}
 	return 0;
 }
 
@@ -321,18 +335,21 @@ static void* iris_daemon(void *udata)
 
 		for (i = 0; i < n; i++) {
 			iris_debug("IRIS DEBUG: activity on %d:%s%s%s", events[i].data.fd,
-					(events[i].events & EPOLLERR ? " EPOLLERR" : ""),
-					(events[i].events & EPOLLHUP ? " EPOLLHUP" : ""),
-					(events[i].events & EPOLLIN  ? " EPOLLIN"  : ""));
+					(events[i].events & EPOLLERR   ? " EPOLLERR"   : ""),
+					(events[i].events & EPOLLHUP   ? " EPOLLHUP"   : ""),
+					(events[i].events & EPOLLRDHUP ? " EPOLLRDHUP" : ""),
+					(events[i].events & EPOLLIN    ? " EPOLLIN"    : ""));
 
 			// ERROR event
-			if ((events[i].events & EPOLLERR) ||
-			    (events[i].events & EPOLLHUP) ||
+			if ((events[i].events & EPOLLERR)   ||
+			    (events[i].events & EPOLLHUP)   ||
+			    (events[i].events & EPOLLRDHUP) ||
 			    !(events[i].events & EPOLLIN)) {
 
 				// What just happened?
 				//  - there was an error on the file descriptor :  EPOLLERR
-				//  - the other end of the pipe was closed      :  EPOLLHUP
+				//  - something bad happened to the pipe        :  EPOLLHUP
+				//  - the other end of the pipe was closed      :  EPOLLRDHUP
 				//  - the file descriptor wasn't readable       : !EPOLLIN
 
 				close(events[i].data.fd);
@@ -345,7 +362,8 @@ static void* iris_daemon(void *udata)
 				while (iris_accept(sockfd, epfd) >= 0)
 					;
 
-			} else if (events[i].events & EPOLLIN) {
+			} else if ((events[i].events & EPOLLIN) ||
+			           (events[i].events & EPOLLRDHUP)) {
 				iris_recv_data(events[i].data.fd, &data);
 			}
 		}

@@ -1,6 +1,6 @@
 #ifndef IRIS_H
 
-#define VERSION "1.8.7"
+#define VERSION "1.0.0"
 
 #include <sys/types.h>
 #include <sys/socket.h>

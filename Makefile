@@ -1,7 +1,9 @@
 CFLAGS := -Wall -Iicinga -g -O
-#CFLAGS += -DDEBUG
+ifneq ($(DEBUG),)
+	CFLAGS += -DDEBUG
+endif
 
-default: libiris.so send_iris
+all: libiris.so send_iris
 libiris.so: iris.lo broker.lo
 	libtool --mode link gcc $(CFLAGS) -o libiris.la $+ -rpath /usr/lib -lm -lpthread
 send_iris: iris.o send_iris.o

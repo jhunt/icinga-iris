@@ -6,3 +6,4 @@
 .libs
 send_iris
 perf/*.out
+t/*.t

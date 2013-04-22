@@ -22,8 +22,8 @@
 #include <arpa/inet.h>
 
 
-#define IRIS_DEFAULT_PORT          5668
-#define IRIS_DEFAULT_PORT_STRING  "5668"
+#define IRIS_DEFAULT_PORT          5667
+#define IRIS_DEFAULT_PORT_STRING  "5667"
 #define IRIS_DEFAULT_TIMEOUT         10
 #define IRIS_PROTOCOL_VERSION         1
 

@@ -4,6 +4,7 @@
 int main(int argc, char **argv)
 {
 	plan_tests(8);
+	freopen("/dev/null", ">", stderr);
 
 	struct pdu pdu;
 	time_t now;
@@ -26,7 +27,6 @@ int main(int argc, char **argv)
 	ok(pdu.rc == 2,      "pdu_unpack decoded the return code");
 
 	/* screw up the crc32 */
-	diag("You should see a message about CRC mismatch...");
 	pdu.ts      = htonl(now);
 	pdu.version = htons(1);
 	pdu.rc      = htons(2);
@@ -38,7 +38,6 @@ int main(int argc, char **argv)
 	pdu.version = htons(1);
 	pdu.rc      = htons(2);
 	pdu.crc32   = htonl(crc32((char*)&pdu, sizeof(pdu)));
-	diag("You should see a message about the PDU being too old");
 	ok(pdu_unpack(&pdu) != 0, "unpack fails, due to packet age");
 
 	/* PDU from the future! (>30s from now) */
@@ -46,7 +45,6 @@ int main(int argc, char **argv)
 	pdu.version = htons(1);
 	pdu.rc      = htons(2);
 	pdu.crc32   = htonl(crc32((char*)&pdu, sizeof(pdu)));
-	diag("You should see a message about the PDU being from the future");
 	ok(pdu_unpack(&pdu) != 0, "unpack fails, due to packet futuriness");
 
 	/* Incorrect PDU version (i.e., !1) */
@@ -54,7 +52,6 @@ int main(int argc, char **argv)
 	pdu.version = htons(2);
 	pdu.rc      = htons(2);
 	pdu.crc32   = htonl(crc32((char*)&pdu, sizeof(pdu)));
-	diag("You should see a message about PDU version mismatch");
 	ok(pdu_unpack(&pdu) != 0, "unpack fails, due to PDU version");
 
 	return exit_status();

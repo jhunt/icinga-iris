@@ -19,6 +19,8 @@ void _string_is(const char *got, const char *want,
 int main(int argc, char **argv)
 {
 	plan_tests(2);
+	freopen("/dev/null", ">", stderr);
+
 	char *got;
 
 	got = strdup("\ta test   \t\n\n\r\n ");

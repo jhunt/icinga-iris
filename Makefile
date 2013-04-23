@@ -6,15 +6,9 @@ PROVE   := prove -e ''
 
 ifneq ($(DEVEL),)
 	CFLAGS  += -fprofile-arcs -ftest-coverage
+	CFLAGS  += -DDEBUG
 
 	LDFLAGS += -fprofile-arcs -ftest-coverage -lgcov
-endif
-
-ifneq ($(DEBUG),)
-	CFLAGS += -DDEBUG
-endif
-ifneq ($(LIMITS),)
-	CFLAGS += -DDEBUG_LIMITS
 endif
 
 
@@ -69,3 +63,6 @@ t/03-pdu.t: t/03-pdu.t.o iris.o
 t/10-read.t: t/10-read.t.o iris.o
 t/15-bind.t: t/15-bind.t.o iris.o
 t/20-cli.t: t/20-cli.t.o iris.o
+t/45-net-server.t: t/45-net-server.t.o iris.o
+t/45-net-client.t: t/45-net-client.t.o iris.o
+t/70-stressmem.t: t/70-stressmem.t.o iris.o

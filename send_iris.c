@@ -1,7 +1,5 @@
 #include "iris.h"
 
-#define MAX_LINE 8192
-
 struct {
 	char *host;
 	int   port;
@@ -15,30 +13,6 @@ struct {
 	.quiet   = 0,
 	.delim   = "\t"
 };
-
-static int sendall(int fd, char *buf, int *len)
-{
-	int left = *len;
-	*len = 0;
-	int n = 0;
-
-	while (left > 0) {
-		n = write(fd, buf + *len, left);
-		if (n < 0) break;
-		*len += n;
-		left -= n;
-	}
-	return n < 0 ? n : 0;
-}
-
-static int sink(int fd)
-{
-	char buf[512];
-	size_t n = 0;
-	while ((n = read(fd, buf, n)) > 0)
-		;
-	return n;
-}
 
 void alarm_handler(int sig)
 {
@@ -109,67 +83,35 @@ int main(int argc, char **argv)
 {
 	struct pdu *packets = NULL;
 	unsigned int npackets = 0, nsent = 0;
-	struct sockaddr_in addr;
-	int i, len;
+	int sock, i, len;
 
-	if (process_args(argc, argv) != 0) {
-		alarm(0); exit(3);
-	}
+	if (process_args(argc, argv) != 0)
+		exit(3);
 
 	int npackets = read_packets(stdin, &packets, OPTS.delim);
 
-	memset(&addr, 0, sizeof(addr));
-	addr.sin_family = AF_INET;
-	addr.sin_port   = htons(OPTS.port);
-
-	if (!inet_aton(OPTS.host, &addr.sin_addr)) {
-		struct hostent *he;
-		he = gethostbyname((const char*)OPTS.host);
-		if (!he) {
-			fprintf(stderr, "%s: %s\n", OPTS.host, strerror(errno));
-			exit(3);
-		}
-		memcpy(&addr.sin_addr, he->h_addr, he->h_length);
-	}
-
 	signal(SIGALRM, alarm_handler);
 	alarm(OPTS.timeout);
-
-	int sock = socket(AF_INET, SOCK_STREAM, 0);
-	if (sock < 0) {
-		fprintf(stderr, "failed to create a socket: %s\n", strerror(errno));
-		exit(3);
+	if ((sock = net_connect(OPTS.host, OPTS.port)) < 0) {
+		fprintf(stderr, "error connecting to %s:%d: %s\n",
+				OPTS.host, OPTS.port, strerror(errno));
+		alarm(0); exit(3);
 	}
-
-	if (connect(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
-		fprintf(stderr, "connection failed: %s\n", strerror(errno));
-		exit(2);
-	}
-	alarm(0);
 
 	for (i = 0; i < npackets; i++) {
 		time((time_t*)&packets[i].ts);
 		pdu_pack(&packets[i]);
 
-		alarm(OPTS.timeout);
 		len = sizeof(struct pdu);
-		if (sendall(sock, (char*)(&packets[i]), &len) < 0) {
+		if (pdu_send(sock, &packets[i]) < 0) {
 			fprintf(stderr, "error sending data to %s:%d\n", OPTS.host, OPTS.port);
 			close(sock);
 			alarm(0); exit(3);
 		}
-
-		if (len < sizeof(packets[i])) {
-			fprintf(stderr, "warning: only sent %d/%lu bytes to %s:%i\n",
-				len, sizeof(packets[i]), OPTS.host, OPTS.port);
-			close(sock);
-			alarm(0); exit(3);
-		}
 		nsent++;
-		alarm(0);
 	}
 	shutdown(sock, SHUT_WR);
-	sink(sock);
+	fd_sink(sock);
 	close(sock);
 	alarm(0);
 

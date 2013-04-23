@@ -34,13 +34,13 @@ int main(int argc, char **argv)
 	pdu.crc32 = htonl(crc32("xyzzy", 5));
 	ok(pdu_unpack(&pdu) != 0, "unpack fails, because of CRC mismatch");
 
-	/* PDU from the far past (<30s ago) */
-	pdu.ts      = now - 31;
+	/* PDU from the far past (<900s ago) */
+	pdu.ts      = now - 901;
 	ok(pdu_pack(&pdu) == 0, "repacked the PDU");
 	ok(pdu_unpack(&pdu) != 0, "unpack fails, due to packet age");
 
-	/* PDU from the future! (>30s from now) */
-	pdu.ts      = now + 31;
+	/* PDU from the future! (>900s from now) */
+	pdu.ts      = now + 901;
 	ok(pdu_pack(&pdu) == 0, "repacked the PDU");
 	ok(pdu_unpack(&pdu) != 0, "unpack fails, due to packet futuriness");
 
@@ -48,7 +48,10 @@ int main(int argc, char **argv)
 	pdu.ts      = now;
 	ok(pdu_pack(&pdu) == 0, "repacked the PDU");
 	pdu.version = htons(2);
-	pdu.crc32   = htonl(crc32((char*)&pdu, sizeof(pdu))); // since we meddled with version
+	// since we meddle with version, we have to handle CRC32 ourselves...
+	pdu.crc32   = 0x0000;
+	pdu.crc32   = htonl(crc32((char*)&pdu, sizeof(pdu)));
+	// and check
 	ok(pdu_unpack(&pdu) != 0, "unpack fails, due to PDU version");
 
 	return exit_status();

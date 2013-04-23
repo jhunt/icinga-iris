@@ -43,6 +43,20 @@ Vestibulum ac enim nisi.
 EOF
 close $fh;
 
+#### Arbitrary garbage data (#2 - leading tabs only)
+open $fh, ">", "$DIR/garbage2"
+	or die "$DIR/garbage1: $!";
+print $fh <<EOF;
+\t\tLorem ipsum dolor sit amet
+EOF
+close $fh;
+
+#### ETBs
+open my $fh, ">", "$DIR/etb"
+	or die "$DIR/etb: $!";
+print $fh "\x17 ETB \x17 ETB \x17\x17\x17";
+close $fh;
+
 #### Extra tabs
 open $fh, ">", "$DIR/extra"
 	or die "$DIR/extra: $!";
@@ -65,9 +79,43 @@ open $fh, ">", "$DIR/jumbo"
 print $fh repeat("host.a41.", 70); # max is 64
 print $fh "\t";
 print $fh repeat("service.v^v^v:", 140); # max is 128
-print $fh "\t";
-print $fh "1234";
-print $fh "\t";
+print $fh "\t1\t";
 print $fh repeat("all work and no play make jack a dull boy. ", 5100); # max is 4096
 print $fh "\x17";
+close $fh;
+
+#### Empty strings
+open $fh, ">", "$DIR/empty"
+	or die "$DIR/empty: $!";
+print $fh "";
+close $fh;
+
+#### Null
+open $fh, ">", "$DIR/null"
+	or die "$DIR/null: $!";
+print $fh "\0\0\0";
+close $fh;
+
+#### empty Fields
+open $fh, ">", "$DIR/nofield"
+	or die "$DIR/nofield: $!";
+print $fh "\t\t\t\n\x17";
+
+#### Big Mess
+open $fh, ">", "$DIR/mess"
+	or die "$DIR/mess: $!";
+print $fh <<EOF;
+hi.  i'm a wonky client!\x17\x01\x14\x15\x16\x17
+
+HTTP/1.1 GET /stuff
+\t\t\t\t\x17
+host\tservice\t2\toutput
+\x17host01.x.y.z.svcs.be.atl.synacor.com\tgdma_check_that_things_are_working\t0\tOK - all good
+\x17
+\n\n\n
+
+host\tservice\t00\tdouble-zero is close, but not close enough\x17
+host\tservice\t9\tbad return code 9 (>'3')\x17
+host\tservice\t+\tbad return code + (< '0')\x17
+EOF
 close $fh;

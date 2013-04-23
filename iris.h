@@ -26,7 +26,14 @@
 
 #include <sys/epoll.h>
 
+/* Define EPOLLRDHUP ourselves, if the kernel didn't do it already.
+   see http://sourceware.org/bugzilla/show_bug.cgi?id=5040 */
+#ifndef EPOLLRDHUP
+#  define EPOLLRDHUP 0x2000
+#endif
 
+
+// FIXME: default port needs to be 5668
 #define IRIS_DEFAULT_PORT          5667
 #define IRIS_DEFAULT_PORT_STRING  "5667"
 #define IRIS_DEFAULT_TIMEOUT         10
@@ -61,12 +68,17 @@ unsigned long crc32(char *buf, int len);
 int nonblocking(int fd);
 
 int pdu_read(int fd, char *buf, size_t *len);
+int pdu_send(int fd, const char *buf, size_t *len);
+
 int pdu_pack(struct pdu *pdu);
 int pdu_unpack(struct pdu *pdu);
 
 int net_bind(const char *host, const char *port);
+int net_poller(int sockfd);
 int net_accept(int sockfd, int epfd);
 
+int net_connect(const char *host, unsigned short port);
+int fd_sink(int fd);
 int read_packets(FILE *io, struct pdu **packets, const char *delim);
 
 #endif

@@ -20,7 +20,6 @@ void _string_is(const char *got, const char *want,
 
 int main(int argc, char **argv)
 {
-	//plan_tests(3);
 	plan_no_plan();
 
 	int rc = system("./t/util/gen-packets " TMP);
@@ -64,6 +63,28 @@ int main(int argc, char **argv)
 	n = read_packets(io, &packets, "\t");
 	ok(n == 0, "read %d packets (expect 0) from %s/garbage", n, TMP);
 	ok(feof(io), "%s/garbage is at EOF", TMP);
+	fclose(io);
+	free(packets); packets = NULL;
+
+
+	io = fopen(TMP "/garbage2", "r");
+	ok(io, "Opened %s/garbage2 for reading", TMP);
+	ok(!feof(io), "%s/garbage2 is not at EOF", TMP);
+
+	n = read_packets(io, &packets, "\t");
+	ok(n == 0, "read %d packets (expect 0) from %s/garbage2", n, TMP);
+	ok(feof(io), "%s/garbage2 is at EOF", TMP);
+	fclose(io);
+	free(packets); packets = NULL;
+
+
+	io = fopen(TMP "/etb", "r");
+	ok(io, "Opened %s/etb for reading", TMP);
+	ok(!feof(io), "%s/etb is not at EOF", TMP);
+
+	n = read_packets(io, &packets, "\t");
+	ok(n == 0, "read %d packets (expect 0) from %s/etb", n, TMP);
+	ok(feof(io), "%s/etb is at EOF", TMP);
 	fclose(io);
 	free(packets); packets = NULL;
 
@@ -126,6 +147,62 @@ int main(int argc, char **argv)
 	ok(feof(io), "%s/jumbo is at EOF", TMP);
 	fclose(io);
 	free(packets); packets = NULL;
+
+
+	io = fopen(TMP "/empty", "r");
+	ok(io, "Opened %s/empty for reading", TMP);
+	ok(!feof(io), "%s/empty is not at EOF", TMP);
+
+	n = read_packets(io, &packets, "\t");
+	ok(n == 0, "read %d packets (expect 0) from %s/empty", n, TMP);
+	ok(feof(io), "%s/empty is at EOF", TMP);
+	fclose(io);
+	free(packets); packets = NULL;
+
+
+	io = fopen(TMP "/null", "r");
+	ok(io, "Opened %s/null for reading", TMP);
+	ok(!feof(io), "%s/null is not at EOF", TMP);
+
+	n = read_packets(io, &packets, "\t");
+	ok(n == 0, "read %d packets (expect 0) from %s/null", n, TMP);
+	ok(feof(io), "%s/null is at EOF", TMP);
+	fclose(io);
+	free(packets); packets = NULL;
+
+
+	io = fopen(TMP "/nofield", "r");
+	ok(io, "Opened %s/nofield for reading", TMP);
+	ok(!feof(io), "%s/nofield is not at EOF", TMP);
+
+	n = read_packets(io, &packets, "\t");
+	ok(n == 0, "read %d packets (expect 0) from %s/nofield", n, TMP);
+	ok(feof(io), "%s/nofield is at EOF", TMP);
+	fclose(io);
+	free(packets); packets = NULL;
+
+
+	io = fopen(TMP "/mess", "r");
+	ok(io, "Opened %s/mess for reading", TMP);
+	ok(!feof(io), "%s/mess is not at EOF", TMP);
+
+	n = read_packets(io, &packets, "\t");
+	ok(n == 2, "read %d packets (expect 0) from %s/mess", n, TMP);
+
+	ok(packets[0].rc == 2, "pdu[0].rc");
+	string_is(packets[0].host,    "host",    "pdu[0].host");
+	string_is(packets[0].service, "service", "pdu[0].service");
+	string_is(packets[0].output,  "output",  "pdu[0].output");
+
+	ok(packets[1].rc == 0, "pdu[1].rc");
+	string_is(packets[1].host,    "host01.x.y.z.svcs.be.atl.synacor.com", "pdu[1].host");
+	string_is(packets[1].service, "gdma_check_that_things_are_working",  "pdu[1].service");
+	string_is(packets[1].output,  "OK - all good",                       "pdu[1].output");
+
+	ok(feof(io), "%s/mess is at EOF", TMP);
+	fclose(io);
+	free(packets); packets = NULL;
+
 
 	return exit_status();
 }

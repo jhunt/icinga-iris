@@ -89,6 +89,18 @@ int pdu_read(int fd, char *buf, size_t *len)
 	return n;
 }
 
+int pdu_send(int fd, const char *buf, size_t *len)
+{
+	ssize_t n;
+	char *off = buf;
+
+	while ((n = write(fd, off, *len)) > 0) {
+		 off += n; *len -= n;
+	}
+	*len = off - buf;
+	return n < 0 ? n : 0;
+}
+
 int pdu_pack(struct pdu *pdu)
 {
 	pdu->version = htons(IRIS_PROTOCOL_VERSION);
@@ -132,7 +144,7 @@ int pdu_unpack(struct pdu *pdu)
 	} else {
 		age = (long)(now - pdu->ts);
 	}
-	if (age > 30) {
+	if (age > 900) { // FIXME: configuration file?
 		log_info("Packet age is %ds in the %s", age,
 			(pdu->ts > (uint32_t)(now) ? "future" : "past"));
 		return -1;
@@ -159,7 +171,7 @@ int net_bind(const char *host, const char *port)
 	}
 
 	head = res;
-	do {
+	do { // FIXME: test on multi-homed hosts
 		fd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
 		if (fd < 0) continue;
 
@@ -188,6 +200,19 @@ int net_bind(const char *host, const char *port)
 		return -1;
 	}
 	return fd;
+}
+
+int net_poller(int sockfd)
+{
+	int epfd;
+	struct epoll_event ev;
+
+	if ((epfd = epoll_create(42)) < 0) return -1;
+
+	ev.data.fd = sockfd;
+	ev.events = EPOLLIN | EPOLLET;
+	if (epoll_ctl(epfd, EPOLL_CTL_ADD, sockfd, &ev) != 0) return -1;
+	return epfd;
 }
 
 int net_accept(int sockfd, int epfd)
@@ -229,12 +254,43 @@ int net_accept(int sockfd, int epfd)
 	return connfd;
 }
 
+int net_connect(const char *host, unsigned short port)
+{
+	struct sockaddr_in addr;
+	int fd;
+
+	memset(&addr, 0, sizeof(addr));
+	addr.sin_family = AF_INET;
+	addr.sin_port   = htons(port);
+
+	if (!inet_aton(host, &addr.sin_addr)) {
+		struct hostent *he;
+		if (!(he = gethostbyname(host))) return -1;
+		memcpy(&addr.sin_addr, he->h_addr, he->h_length);
+	}
+
+	fd = socket(AF_INET, SOCK_STREAM, 0);
+	if (fd < 0) return -1;
+
+	if (connect(fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) return -1;
+	return fd;
+}
+
+int fd_sink(int fd)
+{
+	char buf[512];
+	size_t n = 0;
+	while ((n = read(fd, buf, 512)) > 0)
+		;
+	return n;
+}
+
 #define IRIS_CLI_MAX_LINE 5*1024
 int read_packets(FILE *io, struct pdu **result, const char *delim)
 {
 	struct pdu *pdu, *list = NULL;
-	int c, i, n = 0;
-	char buf[IRIS_CLI_MAX_LINE], *str;
+	int i, n = 0;
+	char buf[IRIS_CLI_MAX_LINE], *str, c;
 
 	while (!feof(io)) {
 		for (i = 0, c = getc(io);
@@ -243,7 +299,7 @@ int read_packets(FILE *io, struct pdu **result, const char *delim)
 				buf[i] = c;
 		}
 		c = getc(io);
-		if (c > 0 && c != '\n') putc(c, io);
+		if (c > 0 && c != '\n') ungetc(c, io);
 
 		buf[i] = '\0';
 		strip(buf);
@@ -251,12 +307,8 @@ int read_packets(FILE *io, struct pdu **result, const char *delim)
 
 		// new packet!
 		struct pdu *re = realloc(list, (n+1) * sizeof(struct pdu));
-		if (!re) {
-			fprintf(stderr, "memory exhausted.\n");
-			exit(2);
-		}
-		list = re;
-		pdu = list+n;
+		if (!re) return -1;
+		pdu = (list = re)+n;
 		memset(pdu, 0, sizeof(struct pdu));
 
 		str = strtok(buf, delim);
@@ -268,13 +320,13 @@ int read_packets(FILE *io, struct pdu **result, const char *delim)
 		strncpy(pdu->service, str, IRIS_PDU_SERVICE_LEN-1);
 
 		str = strtok(NULL, delim);
-		if (!str) continue;
-		pdu->rc = (uint16_t)atoi(str);
+		if (!str || !str[0] || str[1])    continue; // too short or too long...
+		if (str[0] < '0' || str[0] > '3') continue; // not 0-3
+		pdu->rc = str[0] - '0';
 
 		str = strtok(NULL, "\0");
 		if (!str) continue;
 		strncpy(pdu->output, str, IRIS_PDU_OUTPUT_LEN-1);
-		//escape(pdu->output, IRIS_PDU_OUTPUT_LEN);
 
 		n++;
 	}

@@ -18,12 +18,6 @@
    will return.  This is *not* the max of pollable FDs. */
 #define IRIS_MAXFD 64
 
-/* Define EPOLLRDHUP ourselves, if the kernel didn't do it already.
-   see http://sourceware.org/bugzilla/show_bug.cgi?id=5040 */
-#ifndef EPOLLRDHUP
-#  define EPOLLRDHUP 0x2000
-#endif
-
 NEB_API_VERSION(CURRENT_NEB_API_VERSION);
 
 /*************************************************************/
@@ -37,13 +31,11 @@ static int iris_recv_data(int fd)
 {
 	int rc;
 	struct pdu pdu;
-	size_t len = sizeof(pdu);
+	size_t len;
 
 	log_debug("IRIS DEBUG: reading from fd %d", fd);
 	for (;;) {
-		memset(&pdu, 0, sizeof(pdu));
-		len = sizeof(pdu);
-
+		memset(&pdu, 0, len = sizeof(pdu));
 		rc = pdu_read(fd, (char*)&pdu, &len);
 		log_debug("IRIS DEBUG: pdu_read(%d) returned %d, read %d bytes", fd, rc, len);
 
@@ -59,6 +51,7 @@ static int iris_recv_data(int fd)
 		}
 
 		if (pdu_unpack(&pdu) != 0) {
+			// FIXME: stop using fds, start using client IP
 			log_info("IRIS: discarding bogus packet from fd %d", fd);
 			return -1;
 		}
@@ -74,7 +67,7 @@ static int iris_recv_data(int fd)
 
 		res->host_name = strdup(pdu.host);
 		if (strcmp(pdu.service, "HOST") != 0) {
-		res->service_description = strdup(pdu.service);
+			res->service_description = strdup(pdu.service);
 			res->object_check_type = SERVICE_CHECK;
 		}
 
@@ -105,43 +98,23 @@ static void* iris_daemon(void *udata)
 {
 	int i, n;
 	int sockfd, epfd;
-	struct epoll_event event;
 	struct epoll_event events[IRIS_MAXFD];
 
 	log_info("IRIS: starting up the iris daemon on *:%d", IRIS_DEFAULT_PORT);
 
-#ifdef DEBUG_LIMITS
-	struct rlimit lims;
-	getrlimit(RLIMIT_NOFILE, &lims);
-	lims.rlim_cur = 3072;
-	lims.rlim_max = 4096;
-	log_info("IRIS: running under LIMITS mode; setting no_file limits to %d/%d",
-		lims.rlim_cur, lims.rlim_max);
-	setrlimit(RLIMIT_NOFILE, &lims);
-#endif
-
-	// bind and listen on *:5667
-	if ((sockfd = net_bind(NULL, IRIS_DEFAULT_PORT_STRING)) < 0) exit(2);
-
-	// start up eopll
-	if ((epfd = epoll_create(42)) < 0) {
-		log_info("IRIS: epoll initialization failed: %s", strerror(errno));
+	// bind and listen on our port, all interfaces
+	if ((sockfd = net_bind(NULL, IRIS_DEFAULT_PORT_STRING)) < 0)
 		exit(2);
-	}
 
-	// register our listening socket
-	event.data.fd = sockfd;
-	event.events = EPOLLIN | EPOLLET;
-	if (epoll_ctl(epfd, EPOLL_CTL_ADD, sockfd, &event) != 0) {
-		log_info("IRIS: epoll_ctl(%d, EPOLL_CTL_ADD, %d, &event) failed: %s",
-				epfd, sockfd, strerror(errno));
+	// start up epoll
+	if ((epfd = net_poller(sockfd)) < 0) {
+		log_info("IRIS: Initialization of IO/polling (via epoll) failed: %s", strerror(errno));
+		exit(2);
 	}
 
 	// and loop
 	for (;;) {
-		n = epoll_wait(epfd, events, sizeof(events), 1); // FIXME: experiment with timeout = -1
-		if (n <= 0) continue;
-
+		n = epoll_wait(epfd, events, sizeof(events), -1);
 		log_debug("IRIS DEBUG: epoll gave us %d fds to work with", n);
 
 		for (i = 0; i < n; i++) {
@@ -160,6 +133,7 @@ static void* iris_daemon(void *udata)
 			    (events[i].events & EPOLLRDHUP) || // client shutdown(x, SHUT_WR)
 			    !(events[i].events & EPOLLIN)) {   // not really readable (???)
 
+				log_debug("IRIS DEBUG: closing fd %d", fd);
 				close(events[i].data.fd);
 				continue;
 			}
@@ -170,8 +144,7 @@ static void* iris_daemon(void *udata)
 				while (net_accept(sockfd, epfd) >= 0)
 					;
 
-			} else if ((events[i].events & EPOLLIN) ||
-			           (events[i].events & EPOLLRDHUP)) {
+			} else if (events[i].events & EPOLLIN) {
 				if (iris_recv_data(events[i].data.fd) != 0) {
 					log_debug("IRIS DEBUG: closing fd %d", events[i].data.fd);
 					close(events[i].data.fd);
@@ -223,6 +196,7 @@ int nebmodule_deinit(int flags, int reason)
 	log_debug("IRIS DEBUG: flags=%d, reason=%d", flags, reason);
 
 	log_debug("IRIS DEBUG: deregistering callbacks");
+	// FIXME: look at pthread_join to kill iris "daemon"
 	neb_deregister_callback(NEBCALLBACK_PROCESS_DATA, iris_hook);
 
 	log_debug("IRIS DEBUG: shutdown complete");

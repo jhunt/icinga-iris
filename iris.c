@@ -89,6 +89,17 @@ int pdu_read(int fd, char *buf, size_t *len)
 	return n;
 }
 
+int pdu_pack(struct pdu *pdu)
+{
+	pdu->version = htons(IRIS_PROTOCOL_VERSION);
+	pdu->ts      = htonl((uint32_t)pdu->ts);
+	pdu->rc      = htons(pdu->rc);
+
+	pdu->crc32   = 0x0000;
+	pdu->crc32   = htonl(crc32((char*)pdu, sizeof(struct pdu)));
+	return 0;
+}
+
 int pdu_unpack(struct pdu *pdu)
 {
 	uint32_t our_crc, their_crc;
@@ -216,4 +227,58 @@ int net_accept(int sockfd, int epfd)
 	}
 
 	return connfd;
+}
+
+#define IRIS_CLI_MAX_LINE 5*1024
+int read_packets(FILE *io, struct pdu **result, const char *delim)
+{
+	struct pdu *pdu, *list = NULL;
+	int c, i, n = 0;
+	char buf[IRIS_CLI_MAX_LINE], *str;
+
+	while (!feof(io)) {
+		for (i = 0, c = getc(io);
+		     !feof(io) && c != '\x17' && i < IRIS_CLI_MAX_LINE;
+			 i++, c = getc(io)) {
+				buf[i] = c;
+		}
+		c = getc(io);
+		if (c > 0 && c != '\n') putc(c, io);
+
+		buf[i] = '\0';
+		strip(buf);
+		if (!*buf) continue;
+
+		// new packet!
+		struct pdu *re = realloc(list, (n+1) * sizeof(struct pdu));
+		if (!re) {
+			fprintf(stderr, "memory exhausted.\n");
+			exit(2);
+		}
+		list = re;
+		pdu = list+n;
+		memset(pdu, 0, sizeof(struct pdu));
+
+		str = strtok(buf, delim);
+		if (!str) continue;
+		strncpy(pdu->host, str, IRIS_PDU_HOST_LEN-1);
+
+		str = strtok(NULL, delim);
+		if (!str) continue;
+		strncpy(pdu->service, str, IRIS_PDU_SERVICE_LEN-1);
+
+		str = strtok(NULL, delim);
+		if (!str) continue;
+		pdu->rc = (uint16_t)atoi(str);
+
+		str = strtok(NULL, "\0");
+		if (!str) continue;
+		strncpy(pdu->output, str, IRIS_PDU_OUTPUT_LEN-1);
+		//escape(pdu->output, IRIS_PDU_OUTPUT_LEN);
+
+		n++;
+	}
+
+	*result = list;
+	return n;
 }

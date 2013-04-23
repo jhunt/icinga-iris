@@ -68,3 +68,4 @@ t/02-nonblocking.t: t/02-nonblocking.t.o iris.o
 t/03-pdu.t: t/03-pdu.t.o iris.o
 t/10-read.t: t/10-read.t.o iris.o
 t/15-bind.t: t/15-bind.t.o iris.o
+t/20-cli.t: t/20-cli.t.o iris.o

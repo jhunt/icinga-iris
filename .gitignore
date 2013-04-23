@@ -12,3 +12,5 @@ lcov.info
 *.gcno
 *.gcda
 coverage
+
+tmp

@@ -16,10 +16,6 @@ struct {
 	.delim   = "\t"
 };
 
-static void escape(char *buf, int len)
-{
-}
-
 static int sendall(int fd, char *buf, int *len)
 {
 	int left = *len;
@@ -111,9 +107,8 @@ int process_args(int argc, char **argv)
 
 int main(int argc, char **argv)
 {
-	struct pdu *packets = NULL, *pdu;
+	struct pdu *packets = NULL;
 	unsigned int npackets = 0, nsent = 0;
-	char buf[MAX_LINE], *str;
 	struct sockaddr_in addr;
 	int i, len;
 
@@ -121,49 +116,7 @@ int main(int argc, char **argv)
 		alarm(0); exit(3);
 	}
 
-	while (!feof(stdin)) {
-		int c = getc(stdin);
-		if (c == -1) break;
-
-		int i = 0;
-		while (c != '\x17') {
-			if (c == -1) break;
-			buf[i++] = c;
-			c = getc(stdin);
-		}
-		buf[i] = '\0';
-		strip(buf);
-		if (!*buf) continue;
-
-		// new packet!
-		struct pdu *re = realloc(packets, (npackets + 1) * sizeof(struct pdu));
-		if (!re) {
-			fprintf(stderr, "memory exhausted.\n");
-			alarm(0); exit(2);
-		}
-		packets = re;
-		pdu = packets+npackets;
-		memset(pdu, 0, sizeof(struct pdu));
-
-		str = strtok(buf, OPTS.delim);
-		if (!str) continue;
-		strncpy(pdu->host, str, IRIS_PDU_HOST_LEN-1);
-
-		str = strtok(NULL, OPTS.delim);
-		if (!str) continue;
-		strncpy(pdu->service, str, IRIS_PDU_SERVICE_LEN-1);
-
-		str = strtok(NULL, OPTS.delim);
-		if (!str) continue;
-		pdu->rc = (int16_t)atoi(str);
-
-		str = strtok(NULL, "\0");
-		if (!str) continue;
-		strncpy(pdu->output, str, IRIS_PDU_OUTPUT_LEN-1);
-		escape(pdu->output, IRIS_PDU_OUTPUT_LEN);
-
-		npackets++;
-	}
+	int npackets = read_packets(stdin, &packets, OPTS.delim);
 
 	memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
@@ -192,16 +145,11 @@ int main(int argc, char **argv)
 		fprintf(stderr, "connection failed: %s\n", strerror(errno));
 		exit(2);
 	}
-
 	alarm(0);
 
 	for (i = 0; i < npackets; i++) {
 		time((time_t*)&packets[i].ts);
-
-		packets[i].version = htons(IRIS_PROTOCOL_VERSION);
-		packets[i].ts      = htonl((uint32_t)packets[i].ts);
-		packets[i].rc      = htons(packets[i].rc);
-		packets[i].crc32   = htonl(crc32((char*)(&packets[i]), sizeof(struct pdu)));
+		pdu_pack(&packets[i]);
 
 		alarm(OPTS.timeout);
 		len = sizeof(struct pdu);

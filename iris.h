@@ -61,9 +61,12 @@ unsigned long crc32(char *buf, int len);
 int nonblocking(int fd);
 
 int pdu_read(int fd, char *buf, size_t *len);
+int pdu_pack(struct pdu *pdu);
 int pdu_unpack(struct pdu *pdu);
 
 int net_bind(const char *host, const char *port);
 int net_accept(int sockfd, int epfd);
+
+int read_packets(FILE *io, struct pdu **packets, const char *delim);
 
 #endif

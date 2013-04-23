@@ -1,0 +1,73 @@
+#!/usr/bin/perl
+
+sub repeat
+{
+	my ($s, $max) = @_;
+	my $mult = int($max / length($s)) + 1; # +1 for good measure
+	my $out = $s x $mult;
+	return substr($out, 0, $max);
+}
+
+my $DIR = shift @ARGV;
+qx(/bin/rm -rf $DIR);
+qx(/bin/mkdir -p $DIR);
+
+my $fh;
+
+#### Normal, correct packet input
+open $fh, ">", "$DIR/normal"
+	or die "$DIR/normal: $!";
+print $fh <<EOF;
+host1\tcpu\t0\tOK - CPU is good\x17
+host1\tdisk\t1\tWARNING - disks are filling up\x17
+host1\tload\t2\tCRITICAL - load is too high\x17
+EOF
+close $fh;
+
+#### Arbitrary garbage data
+open $fh, ">", "$DIR/garbage"
+	or die "$DIR/garbage: $!";
+print $fh <<EOF;
+Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vivamus aliquam
+luctus facilisis. Duis ac arcu urna, vel viverra lacus. Aenean pharetra
+scelerisque augue, at volutpat erat condimentum congue. Morbi placerat
+pulvinar ornare. Pellentesque habitant morbi tristique senectus et netus et
+malesuada fames ac turpis egestas. Nullam venenatis auctor venenatis.
+Integer iaculis urna non justo commodo tempus. Vestibulum pulvinar euismod
+eros, ac volutpat risus sollicitudin varius. Donec eros magna, porttitor
+eget interdum nec, tempor eu libero. Integer aliquet consequat facilisis.
+Proin sit amet dolor a leo tincidunt suscipit. Cras mi odio, vulputate quis
+consectetur eget, vehicula ac lorem. Sed volutpat, tellus vitae dictum
+facilisis, justo dolor porta velit, quis adipiscing tortor nisl eget lacus.
+Vestibulum ac enim nisi.
+EOF
+close $fh;
+
+#### Extra tabs
+open $fh, ">", "$DIR/extra"
+	or die "$DIR/extra: $!";
+print $fh <<EOF;
+host\tservice\t0\tOK\tmessage with a tab\x17
+EOF
+close $fh;
+
+#### Missing tabs
+open $fh, ">", "$DIR/missing"
+	or die "$DIR/missing: $!";
+print $fh <<EOF;
+host\tserv\x17
+EOF
+close $fh;
+
+#### Jumbo-sized fields
+open $fh, ">", "$DIR/jumbo"
+	or die "$DIR/jumbo: $!";
+print $fh repeat("host.a41.", 70); # max is 64
+print $fh "\t";
+print $fh repeat("service.v^v^v:", 140); # max is 128
+print $fh "\t";
+print $fh "1234";
+print $fh "\t";
+print $fh repeat("all work and no play make jack a dull boy. ", 5100); # max is 4096
+print $fh "\x17";
+close $fh;

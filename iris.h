@@ -24,6 +24,8 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include <sys/epoll.h>
+
 
 #define IRIS_DEFAULT_PORT          5667
 #define IRIS_DEFAULT_PORT_STRING  "5667"
@@ -61,6 +63,7 @@ int nonblocking(int fd);
 int pdu_read(int fd, char *buf, size_t *len);
 int pdu_unpack(struct pdu *pdu);
 
-int net_bind(const char *ost, const char *port);
+int net_bind(const char *host, const char *port);
+int net_accept(int sockfd, int epfd);
 
 #endif

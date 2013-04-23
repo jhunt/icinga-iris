@@ -1,7 +1,6 @@
 #define IRIS_EVENT_BROKER
 #include "iris.h"
 
-#include <sys/epoll.h>
 #include <pthread.h>
 
 #define NSCORE
@@ -34,45 +33,6 @@ pthread_t tid;
 
 /*************************************************************/
 
-static int iris_accept(int sockfd, int epfd)
-{
-	struct sockaddr_in in_addr;
-	socklen_t in_len = sizeof(in_addr);
-	struct epoll_event ev;
-
-	log_debug("IRIS DEBUG: accepting inbound connection");
-	int connfd = accept(sockfd, (struct sockaddr*)&in_addr, &in_len);
-	if (connfd < 0) {
-		// EAGAIN / EWOULDBLOCK == no more pending connections
-		if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) return -1;
-
-		log_info("IRIS: accept failed: %s", strerror(errno));
-		return -1;
-	}
-
-	if (nonblocking(connfd) < 0) {
-		log_info("IRIS: failed to make new socket non-blocking: %s", strerror(errno));
-		log_debug("IRIS DEBUG: closing fd %d", connfd);
-		close(connfd);
-		return -1;
-	}
-
-	char addr[INET_ADDRSTRLEN];
-	inet_ntop(AF_INET, &(in_addr.sin_addr), addr, INET_ADDRSTRLEN);
-	log_debug("IRIS DEBUG: accepted inbound connection from %s on fd %d", addr, connfd);
-
-	ev.data.fd = connfd;
-	ev.events = EPOLLIN | EPOLLET;
-	if (epoll_ctl(epfd, EPOLL_CTL_ADD, connfd, &ev) != 0) {
-		log_info("IRIS: failed to inform epoll about new socket fd: %s", strerror(errno));
-		log_debug("IRIS DEBUG: closing fd %d", connfd);
-		close(connfd);
-		return -1;
-	}
-
-	return connfd;
-}
-
 static int iris_recv_data(int fd)
 {
 	int rc;
@@ -84,7 +44,7 @@ static int iris_recv_data(int fd)
 		memset(&pdu, 0, sizeof(pdu));
 		len = sizeof(pdu);
 
-		rc = pdu_read(fd, &pdu, &len);
+		rc = pdu_read(fd, (char*)&pdu, &len);
 		log_debug("IRIS DEBUG: pdu_read(%d) returned %d, read %d bytes", fd, rc, len);
 
 		if (rc < 0) {
@@ -207,7 +167,7 @@ static void* iris_daemon(void *udata)
 			// CONNECT event
 			if (events[i].data.fd == sockfd) {
 				log_debug("IRIS DEBUG: processing inbound connections", sockfd);
-				while (iris_accept(sockfd, epfd) >= 0)
+				while (net_accept(sockfd, epfd) >= 0)
 					;
 
 			} else if ((events[i].events & EPOLLIN) ||
@@ -225,7 +185,7 @@ static void* iris_daemon(void *udata)
 	return NULL;
 }
 
-static int iris_process_data(int event, void *data)
+static int iris_hook(int event, void *data)
 {
 	if (event != NEBCALLBACK_PROCESS_DATA) return 0;
 
@@ -247,7 +207,7 @@ int nebmodule_init(int flags, char *args, nebmodule *mod)
 	log_debug("IRIS DEBUG: flags=%d, args='%s'", flags, args);
 
 	log_debug("IRIS DEBUG: registering callbacks");
-	rc = neb_register_callback(NEBCALLBACK_PROCESS_DATA, IRIS_MODULE, 0, iris_process_data);
+	rc = neb_register_callback(NEBCALLBACK_PROCESS_DATA, IRIS_MODULE, 0, iris_hook);
 	if (rc != 0) {
 		log_info("IRIS: PROCESS_DATA event registration failed, error %i", rc);
 		return 1;
@@ -263,7 +223,7 @@ int nebmodule_deinit(int flags, int reason)
 	log_debug("IRIS DEBUG: flags=%d, reason=%d", flags, reason);
 
 	log_debug("IRIS DEBUG: deregistering callbacks");
-	neb_deregister_callback(NEBCALLBACK_PROCESS_DATA, iris_process_data);
+	neb_deregister_callback(NEBCALLBACK_PROCESS_DATA, iris_hook);
 
 	log_debug("IRIS DEBUG: shutdown complete");
 	return 0;

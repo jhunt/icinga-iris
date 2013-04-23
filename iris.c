@@ -178,3 +178,42 @@ int net_bind(const char *host, const char *port)
 	}
 	return fd;
 }
+
+int net_accept(int sockfd, int epfd)
+{
+	struct sockaddr_in in_addr;
+	socklen_t in_len = sizeof(in_addr);
+	struct epoll_event ev;
+
+	log_debug("IRIS DEBUG: accepting inbound connection");
+	int connfd = accept(sockfd, (struct sockaddr*)&in_addr, &in_len);
+	if (connfd < 0) {
+		// EAGAIN / EWOULDBLOCK == no more pending connections
+		if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) return -1;
+
+		log_info("IRIS: accept failed: %s", strerror(errno));
+		return -1;
+	}
+
+	if (nonblocking(connfd) < 0) {
+		log_info("IRIS: failed to make new socket non-blocking: %s", strerror(errno));
+		log_debug("IRIS DEBUG: closing fd %d", connfd);
+		close(connfd);
+		return -1;
+	}
+
+	char addr[INET_ADDRSTRLEN];
+	inet_ntop(AF_INET, &(in_addr.sin_addr), addr, INET_ADDRSTRLEN);
+	log_debug("IRIS DEBUG: accepted inbound connection from %s on fd %d", addr, connfd);
+
+	ev.data.fd = connfd;
+	ev.events = EPOLLIN | EPOLLET;
+	if (epoll_ctl(epfd, EPOLL_CTL_ADD, connfd, &ev) != 0) {
+		log_info("IRIS: failed to inform epoll about new socket fd: %s", strerror(errno));
+		log_debug("IRIS DEBUG: closing fd %d", connfd);
+		close(connfd);
+		return -1;
+	}
+
+	return connfd;
+}

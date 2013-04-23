@@ -7,3 +7,8 @@
 send_iris
 perf/*.out
 t/*.t
+
+lcov.info
+*.gcno
+*.gcda
+coverage

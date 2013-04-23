@@ -116,33 +116,31 @@ static int iris_accept(int sockfd, int epfd)
 
 static int iris_recv_data(int fd)
 {
-	int rc, packets = 0;
+	int rc;
 	struct pdu pdu;
 	size_t len = sizeof(pdu);
-	char *raw = malloc(len);
 
 	log_debug("IRIS DEBUG: reading from fd %d", fd);
 	for (;;) {
-		rc = pdu_read(fd, raw, &len);
+		memset(&pdu, 0, sizeof(pdu));
+		len = sizeof(pdu);
+
+		rc = pdu_read(fd, &pdu, &len);
 		log_debug("IRIS DEBUG: pdu_read(%d) returned %d, read %d bytes", fd, rc, len);
+
 		if (rc < 0) {
 			if (errno == EAGAIN) break;
 			log_info("IRIS: failed to read from fd %d: %s", fd, strerror(errno));
-			free(raw);
 			return -1;
 		}
 
 		if (len == 0) {
 			log_info("IRIS: read 0 bytes from fd %d", fd);
-			free(raw);
 			return -1;
 		}
 
-		packets++;
-		memcpy(&pdu, raw, len);
 		if (pdu_unpack(&pdu) != 0) {
 			log_info("IRIS: discarding bogus packet from fd %d", fd);
-			free(raw);
 			return -1;
 		}
 
@@ -178,11 +176,9 @@ static int iris_recv_data(int fd)
 
 		if (rc == 0) {
 			log_debug("IRIS DEBUG: reached EOF on fd %d", fd);
-			free(raw);
 			return -1;
 		}
 	}
-	free(raw);
 	return 0;
 }
 

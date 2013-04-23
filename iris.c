@@ -76,6 +76,19 @@ int nonblocking(int fd)
 	return 0;
 }
 
+int pdu_read(int fd, char *buf, size_t *len)
+{
+	ssize_t n;
+	char *off = buf;
+
+	errno = 0;
+	while ((n = read(fd, off, *len)) > 0) {
+		 off += n; *len -= n;
+	}
+	*len = off - buf;
+	return n;
+}
+
 int pdu_unpack(struct pdu *pdu)
 {
 	uint32_t our_crc, their_crc;
@@ -116,17 +129,4 @@ int pdu_unpack(struct pdu *pdu)
 
 	// looks good
 	return 0;
-}
-
-int pdu_read(int fd, char *buf, size_t *len)
-{
-	ssize_t n;
-	char *off = buf;
-
-	errno = 0;
-	while ((n = read(fd, off, *len)) > 0) {
-		 off += n; *len -= n;
-	}
-	*len = off - buf;
-	return n;
 }

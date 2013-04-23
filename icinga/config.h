@@ -28,7 +28,9 @@
 #define DEFAULT_ICINGA_GROUP "icinga"
 
 /* stop gcc from bitching about implicit asprintf declarations */
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE 1
+#endif
 
 /* check if gcc3 */
 #if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 2)

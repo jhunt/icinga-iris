@@ -1,9 +1,41 @@
 #include "iris.h"
 
-void iris_init_crc32(void)
+unsigned long CRC32[256] = {0};
+
+void log_info(const char *fmt, ...)
+{
+	va_list ap;
+#ifdef IRIS_EVENT_BROKER
+	char *buf;
+	int n;
+
+	va_start(ap, fmt);
+	n = vasprintf(&buf, fmt, ap);
+	va_end(ap);
+
+	write_to_all_logs(buf, NSLOG_INFO_MESSAGE);
+	free(buf);
+#else
+
+	va_start(ap, fmt);
+	vfprintf(stderr, fmt, ap);
+	fprintf(stderr, "\n");
+	va_end(ap);
+#endif
+}
+
+void strip(char *s)
+{
+	char *p;
+	for (p = s+strlen(s)-1; p >= s && isspace(*p); *p-- = '\0')
+		;
+}
+
+static void crc32_init(void)
 {
 	unsigned long crc;
 	int i, j;
+	if (CRC32[0]) return;
 
 	for (i = 0; i < 256; i++) {
 		crc = i;
@@ -18,11 +50,12 @@ void iris_init_crc32(void)
 	}
 }
 
-unsigned long iris_crc32(char *buf, int len)
+unsigned long crc32(char *buf, int len)
 {
 	register unsigned long crc;
 	int c, i;
 
+	crc32_init();
 	crc = 0xFFFFFFFF;
 	for (i = 0; i < len; i++) {
 		c = (uint8_t)buf[i];
@@ -30,4 +63,70 @@ unsigned long iris_crc32(char *buf, int len)
 	}
 
 	return (crc ^ 0xFFFFFFFF);
+}
+
+int nonblocking(int fd)
+{
+	int flags = fcntl(fd, F_GETFL, 0);
+	if (flags < 0) return -1;
+
+	flags |= O_NONBLOCK;
+	if (fcntl(fd, F_SETFL, flags) < 0) return -1;
+
+	return 0;
+}
+
+int pdu_unpack(struct pdu *pdu)
+{
+	uint32_t our_crc, their_crc;
+	long age;
+	time_t now;
+
+	// check the CRC32
+	their_crc = ntohl(pdu->crc32);
+	pdu->crc32 = 0L;
+	our_crc = crc32((char*)pdu, sizeof(struct pdu));
+	if (our_crc != their_crc) {
+		log_info("CRC mismatch (calculated %x != %x); discarding packet and closing connection",
+				our_crc, their_crc);
+		return -1;
+	}
+
+	pdu->version = ntohs(pdu->version);
+	pdu->rc      = ntohs(pdu->rc);
+	pdu->ts      = ntohl(pdu->ts);
+
+	if (pdu->version != IRIS_PROTOCOL_VERSION) {
+		log_info("IRIS: incorrect PDU version (got %d, wanted %d)", pdu->version, IRIS_PROTOCOL_VERSION);
+		return -1;
+	}
+
+	// check packet age
+	time(&now);
+	if (pdu->ts > (uint32_t)(now)) {
+		age = (long)(pdu->ts - now);
+	} else {
+		age = (long)(now - pdu->ts);
+	}
+	if (age > 30) {
+		log_info("Packet age is %ds in the %s", age,
+			(pdu->ts > (uint32_t)(now) ? "future" : "past"));
+		return -1;
+	}
+
+	// looks good
+	return 0;
+}
+
+int pdu_read(int fd, char *buf, size_t *len)
+{
+	ssize_t n;
+	char *off = buf;
+
+	errno = 0;
+	while ((n = read(fd, off, *len)) > 0) {
+		 off += n; *len -= n;
+	}
+	*len = off - buf;
+	return n;
 }

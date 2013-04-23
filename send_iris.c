@@ -16,13 +16,6 @@ struct {
 	.delim   = "\t"
 };
 
-static void strip(char *s)
-{
-	char *p;
-	for (p = s+strlen(s)-1; p >= s && isspace(*p); *p-- = '\0')
-		;
-}
-
 static void escape(char *buf, int len)
 {
 }
@@ -128,8 +121,6 @@ int main(int argc, char **argv)
 		alarm(0); exit(3);
 	}
 
-	iris_init_crc32();
-
 	while (!feof(stdin)) {
 		int c = getc(stdin);
 		if (c == -1) break;
@@ -210,7 +201,7 @@ int main(int argc, char **argv)
 		packets[i].version = htons(IRIS_PROTOCOL_VERSION);
 		packets[i].ts      = htonl((uint32_t)packets[i].ts);
 		packets[i].rc      = htons(packets[i].rc);
-		packets[i].crc32   = htonl(iris_crc32((char*)(&packets[i]), sizeof(struct pdu)));
+		packets[i].crc32   = htonl(crc32((char*)(&packets[i]), sizeof(struct pdu)));
 
 		alarm(OPTS.timeout);
 		len = sizeof(struct pdu);

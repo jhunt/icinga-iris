@@ -1,6 +1,7 @@
 #ifndef IRIS_H
 
-#define VERSION "1.0.0"
+#define VERSION "1.0.1"
+#define _GNU_SOURCE
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -9,6 +10,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
+#include <stdarg.h>
 
 #include <ctype.h>
 #include <time.h>
@@ -16,6 +18,7 @@
 #include <signal.h>
 #include <errno.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 #include <netdb.h>
 #include <netinet/in.h>
@@ -43,9 +46,19 @@ struct pdu {
 	char     output[IRIS_PDU_OUTPUT_LEN];
 };
 
-unsigned long CRC32[256];
+void log_info(const char *fmt, ...);
+#ifdef DEBUG
+#define log_debug log_info
+#else
+static void log_debug(const char *fmt, ...) { }
+#endif
 
-void iris_init_crc32(void);
-unsigned long iris_crc32(char *buf, int len);
+void strip(char *s);
+void init_crc32(void);
+unsigned long crc32(char *buf, int len);
+int nonblocking(int fd);
+
+int pdu_read(int fd, char *buf, size_t *len);
+int pdu_unpack(struct pdu *pdu);
 
 #endif

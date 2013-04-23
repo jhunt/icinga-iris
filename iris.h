@@ -61,4 +61,6 @@ int nonblocking(int fd);
 int pdu_read(int fd, char *buf, size_t *len);
 int pdu_unpack(struct pdu *pdu);
 
+int net_bind(const char *ost, const char *port);
+
 #endif

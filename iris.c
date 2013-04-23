@@ -130,3 +130,51 @@ int pdu_unpack(struct pdu *pdu)
 	// looks good
 	return 0;
 }
+
+int net_bind(const char *host, const char *port)
+{
+	int fd, rc;
+	struct addrinfo hints, *res, *head;
+
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_flags    = AI_PASSIVE;
+	hints.ai_family   = AF_INET;
+	hints.ai_socktype = SOCK_STREAM;
+
+	rc = getaddrinfo(host, port, &hints, &res);
+	if (rc != 0) {
+		log_info("IRIS: getaddrinfo failed: %s", gai_strerror(rc));
+		return -1;
+	}
+
+	head = res;
+	do {
+		fd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+		if (fd < 0) continue;
+
+		char on = 1;
+		setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+
+		if (bind(fd, res->ai_addr, res->ai_addrlen) == 0) {
+			// bound; stop trying addrinfo results!
+			break;
+		}
+
+		close(fd);
+	} while ((res = res->ai_next) != NULL);
+
+	freeaddrinfo(head);
+
+	if (nonblocking(fd) != 0) {
+		log_info("IRIS: failed to set O_NONBLOCK on network socket");
+		close(fd);
+		return -1;
+	}
+
+	if (listen(fd, SOMAXCONN) < 0) {
+		log_info("IRIS: failed to listen() on socket fd %d", fd);
+		close(fd);
+		return -1;
+	}
+	return fd;
+}

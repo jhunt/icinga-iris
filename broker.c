@@ -34,47 +34,6 @@ pthread_t tid;
 
 /*************************************************************/
 
-static int iris_bind(const char *host, const char *port)
-{
-	int fd, rc;
-	struct addrinfo hints, *res, *head;
-
-	memset(&hints, 0, sizeof(hints));
-	hints.ai_flags    = AI_PASSIVE;
-	hints.ai_family   = AF_INET;
-	hints.ai_socktype = SOCK_STREAM;
-
-	rc = getaddrinfo(host, port, &hints, &res);
-	if (rc != 0) {
-		log_info("IRIS: getaddrinfo failed: %s", gai_strerror(rc));
-		exit(2);
-	}
-
-	head = res;
-	do {
-		fd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-		if (fd < 0) continue;
-
-		char on = 1;
-		setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
-
-		if (bind(fd, res->ai_addr, res->ai_addrlen) == 0) {
-			// bound; stop trying addrinfo results!
-			break;
-		}
-
-		close(fd);
-	} while ((res = res->ai_next) != NULL);
-
-	freeaddrinfo(head);
-
-	if (nonblocking(fd) != 0) {
-		log_info("IRIS: failed to set O_NONBLOCK on network socket");
-		exit(2);
-	}
-	return fd;
-}
-
 static int iris_accept(int sockfd, int epfd)
 {
 	struct sockaddr_in in_addr;
@@ -202,11 +161,7 @@ static void* iris_daemon(void *udata)
 #endif
 
 	// bind and listen on *:5667
-	sockfd = iris_bind(NULL, IRIS_DEFAULT_PORT_STRING);
-	if (listen(sockfd, SOMAXCONN) < 0) {
-		log_info("IRIS: failed to listen() on socket fd %d", sockfd);
-		exit(2);
-	}
+	if ((sockfd = net_bind(NULL, IRIS_DEFAULT_PORT_STRING)) < 0) exit(2);
 
 	// start up eopll
 	if ((epfd = epoll_create(42)) < 0) {
@@ -224,30 +179,26 @@ static void* iris_daemon(void *udata)
 
 	// and loop
 	for (;;) {
-		n = epoll_wait(epfd, events, sizeof(events), 1);
+		n = epoll_wait(epfd, events, sizeof(events), 1); // FIXME: experiment with timeout = -1
 		if (n <= 0) continue;
 
 		log_debug("IRIS DEBUG: epoll gave us %d fds to work with", n);
 
 		for (i = 0; i < n; i++) {
+#ifdef DEBUG
 			log_debug("IRIS DEBUG: activity on %d: %04x =%s%s%s%s",
 					events[i].data.fd, events[i].events,
 					(events[i].events & EPOLLERR   ? " EPOLLERR"   : ""),
 					(events[i].events & EPOLLHUP   ? " EPOLLHUP"   : ""),
 					(events[i].events & EPOLLRDHUP ? " EPOLLRDHUP" : ""),
 					(events[i].events & EPOLLIN    ? " EPOLLIN"    : ""));
+#endif
 
 			// ERROR event
-			if ((events[i].events & EPOLLERR)   ||
-			    (events[i].events & EPOLLHUP)   ||
-			    (events[i].events & EPOLLRDHUP) ||
-			    !(events[i].events & EPOLLIN)) {
-
-				// What just happened?
-				//  - there was an error on the file descriptor :  EPOLLERR
-				//  - something bad happened to the pipe        :  EPOLLHUP
-				//  - the other end of the pipe was closed      :  EPOLLRDHUP
-				//  - the file descriptor wasn't readable       : !EPOLLIN
+			if ((events[i].events & EPOLLERR)   || // error on fd
+			    (events[i].events & EPOLLHUP)   || // force closure (thanks, kernel)
+			    (events[i].events & EPOLLRDHUP) || // client shutdown(x, SHUT_WR)
+			    !(events[i].events & EPOLLIN)) {   // not really readable (???)
 
 				close(events[i].data.fd);
 				continue;
@@ -271,28 +222,18 @@ static void* iris_daemon(void *udata)
 
 	close(sockfd);
 	close(epfd);
-	free(events);
+	return NULL;
 }
 
 static int iris_process_data(int event, void *data)
 {
-	nebstruct_process_data *procdata;
+	if (event != NEBCALLBACK_PROCESS_DATA) return 0;
 
-	log_debug("IRIS DEBUG: dispatching PROCESS_DATA event");
+	nebstruct_process_data *proc = (nebstruct_process_data*)data;
+	if (proc->type != NEBTYPE_PROCESS_EVENTLOOPSTART) return 0;
 
-	switch (event) {
-	case NEBCALLBACK_PROCESS_DATA:
-		procdata = (nebstruct_process_data*)data;
-		if (procdata->type == NEBTYPE_PROCESS_EVENTLOOPSTART) {
-			log_debug("IRIS DEBUG: dispatching event-loop start");
-			pthread_create(&tid, 0, iris_daemon, data);
-		}
-		return 0;
-
-	default:
-		log_debug("IRIS DEBUG: Unhandled event type: %lu", event);
-		return 0;
-	}
+	pthread_create(&tid, 0, iris_daemon, data);
+	return 0;
 }
 
 /*************************************************************/

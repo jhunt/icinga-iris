@@ -35,7 +35,7 @@ static void crc32_init(void)
 {
 	unsigned long crc;
 	int i, j;
-	if (CRC32[0]) return;
+	if (CRC32[144]) return;
 
 	for (i = 0; i < 256; i++) {
 		crc = i;

@@ -7,7 +7,9 @@
 # created: 2013-04-22
 #
 
-use Time::HiRes qw/usleep/;
+use strict;
+use warnings;
+
 use IO::Socket;
 use Getopt::Long;
 my %OPTIONS = (
@@ -56,23 +58,21 @@ sub crc32
 	$crc ^ 0xffffffff;
 }
 
-exit if fork;
-exit if fork;
-usleep(1000) until getppid == 1;
-
 $/ = "\x17";
 my @packets = ();
 my $pdu;
 while (<STDIN>) {
-	chomp;
-	s/^\s+//; s/\s+$//;
+	s/^[\x17\s]+//; s/[\x17\s]+$//;
+	next if m/^$/;
+
 	my ($host, $service, $rc, $output) = split /\s*$OPTIONS{delimiter}\s*/, $_, 4;
-	if (!$output and $service =~ m/^[0-9]$/) {
+	if (!$output and $service and $service =~ m/^[0-9]$/) {
 		$output  = $rc;
 		$rc      = $service;
 		$service = 'HOST';
 	}
 	$rc = 3 unless $rc >= 0 and $rc <= 3;
+	next unless $host and $service;
 
 	my $ts = time;
 	$pdu = pack("NNnnZ64Z128Z4096", 0,    $ts, 1, $rc, $host, $service, $output);
@@ -82,7 +82,7 @@ while (<STDIN>) {
 
 	if ($OPTIONS{debug}) {
 		print sprintf("PDU DUMP (crc32=%04x):\n", $crc);
-		open $od, "|-", "/usr/bin/od -a"
+		open my $od, "|-", "/usr/bin/od -a"
 			or die "Failed to exec `od -a' for PDU debugging: $!\n";
 		print $od $pdu;
 		close $od;
@@ -104,4 +104,4 @@ for (@packets) {
 }
 shutdown $socket, 1;
 
-print STDERR "Sent $n packets to $peer\n" unless $OPTIONS{quiet};
+print STDERR "Sent $n results to $peer\n" unless $OPTIONS{quiet};

@@ -130,7 +130,7 @@ int main(int argc, char **argv)
 	alarm(0);
 
 	if (!OPTS.quiet) {
-		printf("sent %d results to host\n", nsent);
+		printf("Sent %d results to %s:%d\n", nsent, OPTS.host, OPTS.port);
 	}
 
 	free(packets);

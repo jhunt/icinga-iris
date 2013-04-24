@@ -401,7 +401,7 @@ int recv_data(int fd)
 		if (len <= 0) {
 			if (errno == EAGAIN) return 0;
 			if (len == 0)
-				log_info("IRIS: reached EOF on fd %d", fd);
+				log_debug("IRIS DEBUG: reached EOF on fd %d", fd);
 			else
 				log_info("IRIS: failed to read from fd %d: %s", fd, strerror(errno));
 			return -1;

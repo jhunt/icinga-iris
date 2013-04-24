@@ -4,8 +4,8 @@
 int main(int argc, char **argv)
 {
 	plan_tests(3);
-
 	freopen("/dev/null", "w", stderr);
+	log_debug("%s: starting", __FILE__);
 
 	int fd;
 	fd = net_bind("0.0.0.0", "5669");

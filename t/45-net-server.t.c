@@ -42,8 +42,10 @@ int main(int argc, char **argv)
 	plan_no_plan();
 	int sockfd, epfd;
 
-	ok(net_poller(-1) < 0, "net_poller startup fails with bad sockfd");
 	freopen("/dev/null", "w", stderr);
+	log_debug("%s: starting", __FILE__);
+
+	ok(net_poller(-1) < 0, "net_poller startup fails with bad sockfd");
 
 	sockfd = net_bind(NET_HOST, NET_PORT);
 	if (sockfd < 0) {

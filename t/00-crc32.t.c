@@ -19,6 +19,9 @@ int main(int argc, char **argv)
 	ok(crc32("0x1a.0x1a.0x1a.0x1a.0x1a.0x1a.0x1a.0x1a", 39) == 0xacc76b10,
 		"crc32(0x1a x 8) == acc76b10");
 
+	freopen("/dev/null", "w", stderr);
+	log_debug("%s: starting", __FILE__);
+
 	return exit_status();
 }
 

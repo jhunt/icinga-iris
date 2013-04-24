@@ -3,15 +3,9 @@
 #include <stdlib.h>
 #include "../iris.h"
 
-//void BAIL(void) {
-//	_cleanup(); // from tap.c
-//	_exit(exit_status());
-//}
-
 int main(int argc, char **argv)
 {
 	plan_no_plan();
-	//atexit(BAIL);
 
 	int pipefd[2];
 	ok(pipe(pipefd) == 0, "[sanity] piped properly");
@@ -52,6 +46,10 @@ int main(int argc, char **argv)
 	n = read_packets(io, &packets, "\t");
 	ok(n == -1, "read_packets failed");
 	ok(errno == ENOMEM, "read_packets failed because of ENOMEM");
+
+
+	freopen("/dev/null", "w", stderr);
+	log_debug("%s: starting", __FILE__);
 
 	return exit_status();
 }

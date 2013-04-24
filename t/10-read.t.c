@@ -122,5 +122,8 @@ int main(int argc, char **argv)
 	ok(len == 0, "len (%i) == 0 after call to read exactly 4300 bytes (end of write loop)", len);
 	close(pipefd[0]);
 
+	freopen("/dev/null", "w", stderr);
+	log_debug("%s: starting", __FILE__);
+
 	return exit_status();
 }

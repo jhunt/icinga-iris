@@ -49,6 +49,7 @@ int main(int argc, char **argv)
 
 	plan_no_plan();
 	freopen("/dev/null", "w", stderr);
+	log_debug("%s: starting", __FILE__);
 
 	ok(pipe(pipefd) == 0, "got a bi-directional pipe");
 	ok(nonblocking(pipefd[0]) == 0, "set O_NONBLOCK on read end of pipe");

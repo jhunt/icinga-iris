@@ -65,8 +65,13 @@ struct pdu {
 	char     output[IRIS_PDU_OUTPUT_LEN];
 };
 
+struct client {
+	int  fd;
+	char addr[INET_ADDRSTRLEN];
+};
+
 #ifdef DEBUG
-#define vdebug(LOG_INFO, __VA_ARGS__)
+#define vdebug(...) vlog(LOG_INFO, __VA_ARGS__)
 #else
 #define vdebug(...)
 #endif
@@ -92,5 +97,8 @@ int read_packets(FILE *io, struct pdu **packets, const char *delim);
 
 void mainloop(int sockfd, int epfd);
 int recv_data(int fd);
+
+const char *client_get(int fd);
+const char *client_set(int fd, const void *ip);
 
 #endif

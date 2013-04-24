@@ -1,5 +1,8 @@
 #include "iris.h"
 
+#define MAX_CLIENT_REGISTRY 8192
+struct client CLIENTS[MAX_CLIENT_REGISTRY];
+
 extern void iris_call_submit_result(struct pdu *pdu);
 extern int iris_call_recv_data(int fd);
 extern void vlog(unsigned int level, const char *fmt, ...);
@@ -103,9 +106,10 @@ int pdu_unpack(struct pdu *pdu)
 	their_crc = ntohl(pdu->crc32); // LCOV_EXCL_LINE
 	pdu->crc32 = 0L;
 	our_crc = crc32((char*)pdu, sizeof(struct pdu));
+	// put the CRC32 back...
+	pdu->crc32 = their_crc;
 	if (our_crc != their_crc) {
-		vlog(LOG_INFO, "CRC mismatch (calculated %x != %x); discarding packet and closing connection",
-				our_crc, their_crc);
+		vlog(LOG_INFO, "IRIS: CRC mismatch (calculated %x != %x)", our_crc, their_crc);
 		return -1;
 	}
 
@@ -126,7 +130,7 @@ int pdu_unpack(struct pdu *pdu)
 		age = (long)(now - pdu->ts);
 	}
 	if (age > 900) { // FIXME: configuration file?
-		vlog(LOG_INFO, "Packet age is %ds in the %s", age,
+		vlog(LOG_INFO, "IRIS: Packet age is %ds in the %s", age,
 			(pdu->ts > (uint32_t)(now) ? "future" : "past"));
 		return -1;
 	}
@@ -164,12 +168,14 @@ int net_bind(const char *host, const char *port)
 			break;
 		}
 
+		client_set(fd, NULL);
 		close(fd);
 	} while ((res = res->ai_next) != NULL);
 
 	freeaddrinfo(head);
 
 	if (nonblocking(fd) != 0 || listen(fd, SOMAXCONN) < 0) {
+		client_set(fd, NULL);
 		close(fd);
 		return -1;
 	}
@@ -195,12 +201,16 @@ int net_accept(int sockfd, int epfd)
 	struct sockaddr_in in_addr;
 	socklen_t in_len = sizeof(in_addr);
 	struct epoll_event ev;
+	const char *addr;
+	int connfd;
 
 	vdebug("IRIS: accepting inbound connection");
-	int connfd = accept(sockfd, (struct sockaddr*)&in_addr, &in_len);
-	if (connfd < 0) {
+	if ((connfd = accept(sockfd, (struct sockaddr*)&in_addr, &in_len)) < 0) {
 		// EAGAIN / EWOULDBLOCK == no more pending connections
-		if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) return -1;
+		if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
+			vdebug("IRIS: accept bailed with an EAGAIN, done accepting inbound connections");
+			return -1;
+		}
 
 		vlog(LOG_WARN, "IRIS: accept failed: %s", strerror(errno));
 		return -1;
@@ -213,10 +223,6 @@ int net_accept(int sockfd, int epfd)
 		return -1;
 	}
 
-	char addr[INET_ADDRSTRLEN];
-	inet_ntop(AF_INET, &(in_addr.sin_addr), addr, INET_ADDRSTRLEN);
-	vdebug("IRIS: accepted inbound connection from %s on fd %d", addr, connfd);
-
 	ev.data.fd = connfd;
 	ev.events = EPOLLIN | EPOLLET;
 	if (epoll_ctl(epfd, EPOLL_CTL_ADD, connfd, &ev) != 0) {
@@ -226,6 +232,9 @@ int net_accept(int sockfd, int epfd)
 		return -1;
 	}
 
+	if ((addr = client_set(connfd, &(in_addr.sin_addr))) != NULL) {
+		vdebug("IRIS: accepted inbound connection from %s", addr, connfd);
+	}
 	return connfd;
 }
 
@@ -316,6 +325,7 @@ void mainloop(int sockfd, int epfd)
 	struct epoll_event events[IRIS_EPOLL_MAXFD];
 
 	for (;;) {
+		vdebug("IRIS: going into epoll_wait loop");
 		n = epoll_wait(epfd, events, sizeof(events), -1);
 		vdebug("IRIS: epoll gave us %d fds to work with", n);
 
@@ -335,7 +345,8 @@ void mainloop(int sockfd, int epfd)
 			    (events[i].events & EPOLLRDHUP) || // client shutdown(x, SHUT_WR)
 			    !(events[i].events & EPOLLIN)) {   // not really readable (???)
 
-				vdebug("IRIS: closing fd %d", events[i].data.fd);
+				vdebug("IRIS: closing connection from %s, fd %d",
+					client_get(events[i].data.fd), events[i].data.fd);
 				close(events[i].data.fd);
 				continue;
 			}
@@ -345,8 +356,15 @@ void mainloop(int sockfd, int epfd)
 				vdebug("IRIS: processing inbound connections", sockfd);
 				while (net_accept(sockfd, epfd) >= 0)
 					;
+				/*
+				int fd;
+				while ((fd = net_accept(sockfd, epfd)) >= 0) {
+					write(fd, "IRIS\1\0", 6);
+				}
+				*/
 
 			} else if (events[i].events & EPOLLIN) {
+				vdebug("IRIS: processing readable filehandle");
 				switch (iris_call_recv_data(events[i].data.fd)) {
 					case 0:
 						break;
@@ -357,7 +375,9 @@ void mainloop(int sockfd, int epfd)
 
 					case -1:
 					default:
-						vdebug("IRIS: closing fd %d", events[i].data.fd);
+						vdebug("IRIS: closing connection from %s, fd %d",
+							client_get(events[i].data.fd), events[i].data.fd);
+
 						close(events[i].data.fd);
 				}
 			}
@@ -370,7 +390,7 @@ int recv_data(int fd)
 	struct pdu pdu;
 	ssize_t len;
 
-	vdebug("IRIS: reading from fd %d", fd);
+	vdebug("IRIS: reading from %s, fd %d", client_get(fd), fd);
 	for (;;) {
 		vdebug("Reading from fd %d", fd);
 		memset(&pdu, 0, sizeof(pdu));
@@ -378,17 +398,20 @@ int recv_data(int fd)
 		vdebug("IRIS: read %d bytes from fd %d", len, fd);
 
 		if (len <= 0) {
-			if (errno == EAGAIN) return 0;
-			if (len == 0)
+			if (errno == EAGAIN) {
+				vdebug("IRIS: got EAGAIN from fd %d", fd);
+				return 0;
+			} else if (len == 0) {
 				vdebug("IRIS: reached EOF on fd %d", fd);
-			else
-				vlog(LOG_INFO, "IRIS: failed to read from fd %d: %s", fd, strerror(errno));
+			} else {
+				vlog(LOG_INFO, "IRIS: failed to read from %s: %s",
+						client_get(fd), strerror(errno));
+			}
 			return -1;
 		}
 
 		if (pdu_unpack(&pdu) != 0) {
-			// FIXME: stop using fds, start using client IP
-			vlog(LOG_WARN, "IRIS: discarding bogus packet from fd %d", fd);
+			vlog(LOG_WARN, "IRIS: discarding bogus packet from %s", client_get(fd));
 			return -1;
 		}
 
@@ -399,4 +422,34 @@ int recv_data(int fd)
 		iris_call_submit_result(&pdu);
 	}
 	return 0;
+}
+
+const char *client_get(int fd)
+{
+	int i;
+	for (i = 0; i < MAX_CLIENT_REGISTRY; i++) {
+		if (CLIENTS[i].fd == fd) return CLIENTS[i].addr;
+	}
+	return NULL;
+}
+
+const char *client_set(int fd, const void *ip)
+{
+	int i;
+	if (ip) {
+		for (i = 0; i < MAX_CLIENT_REGISTRY; i++) {
+			if (CLIENTS[i].fd < 0) continue;
+			CLIENTS[i].fd = fd;
+			inet_ntop(AF_INET, ip, CLIENTS[i].addr, sizeof(CLIENTS[i].addr));
+			return CLIENTS[i].addr;
+		}
+	} else {
+		for (i = 0; i < MAX_CLIENT_REGISTRY; i++) {
+			if (CLIENTS[i].fd != fd) continue;
+			CLIENTS[i].fd = -1;
+			CLIENTS[i].addr[0] = '\0';
+			return NULL;
+		}
+	}
+	return NULL;
 }

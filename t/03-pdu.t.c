@@ -27,6 +27,7 @@ int main(int argc, char **argv)
 	ok(pdu.crc32 == htonl(crc32((char*)&copy, sizeof(copy))), "CRC calculated");
 
 	ok(pdu_unpack(&pdu) == 0, "unpacked the PDU");
+	ok(pdu.crc32 != 0,   "pdu_unpack leaves CRC intact");
 	ok(pdu.ts == now,    "pdu_unpack decoded the timestamp");
 	ok(pdu.version == 1, "pdu_unpack deocded the version");
 	ok(pdu.rc == 2,      "pdu_unpack decoded the return code");

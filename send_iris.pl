@@ -7,6 +7,7 @@
 # created: 2013-04-22
 #
 
+use Time::HiRes qw/usleep/;
 use IO::Socket;
 use Getopt::Long;
 my %OPTIONS = (
@@ -29,14 +30,13 @@ GetOptions(\%OPTIONS,
 );
 if (!$OPTIONS{host}) {
 	print STDERR "Missing required -H option\n";
+	unless (-t STDIN) { while (<STDIN>) { } }
 	exit 1;
 }
 
 my @CRC32 = ();
 
-sub init_crc32
 {
-	return if @CRC32;
 	for (my $i=0; $i<256; $i++) {
 		my $x = $i;
 		for (my $j=0; $j<8; $j++) {
@@ -44,18 +44,21 @@ sub init_crc32
 		}
 		$CRC32[$i] = $x;
 	}
-}
+};
 
 sub crc32
 {
 	my ($s) = @_;
-	init_crc32;
 	my $crc = 0xffffffff;
 	for (unpack 'C*', $s) {
 		$crc = (($crc >> 8) & 0x00ffffff) ^ $CRC32[($crc ^ $_) & 0xff];
 	}
 	$crc ^ 0xffffffff;
 }
+
+exit if fork;
+exit if fork;
+usleep(1000) until getppid == 1;
 
 $/ = "\x17";
 my @packets = ();
@@ -72,12 +75,14 @@ while (<STDIN>) {
 	$rc = 3 unless $rc >= 0 and $rc <= 3;
 
 	my $ts = time;
-	$pdu = pack("NNnnZ64Z128Z4096", 0,           $ts, 1, $rc, $host, $service, $output);
-	$pdu = pack("NNnnZ64Z128Z4096", crc32($pdu), $ts, 1, $rc, $host, $service, $output);
+	$pdu = pack("NNnnZ64Z128Z4096", 0,    $ts, 1, $rc, $host, $service, $output);
+	my $crc = crc32($pdu);
+	substr($pdu, 0, 4) = pack("N", $crc);
 	push @packets, $pdu;
 
 	if ($OPTIONS{debug}) {
-		open $od, "-|", "/usr/bin/od -a"
+		print sprintf("PDU DUMP (crc32=%04x):\n", $crc);
+		open $od, "|-", "/usr/bin/od -a"
 			or die "Failed to exec `od -a' for PDU debugging: $!\n";
 		print $od $pdu;
 		close $od;

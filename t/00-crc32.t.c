@@ -13,7 +13,7 @@ int main(int argc, char **argv)
 		"crc32(0x1a x 8) == acc76b10");
 
 	freopen("/dev/null", "w", stderr);
-	log_debug("%s: starting", __FILE__);
+	vdebug("%s: starting", __FILE__);
 
 	return exit_status();
 }

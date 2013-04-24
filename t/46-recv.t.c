@@ -16,6 +16,7 @@ void iris_call_submit_result(struct pdu *pdu)
 			pdu->rc, num_packets % 3);
 	num_packets++;
 }
+void vlog(unsigned int level, const char *fmt, ...) { }
 
 int child_main(int fd)
 {
@@ -49,7 +50,7 @@ int main(int argc, char **argv)
 
 	plan_no_plan();
 	freopen("/dev/null", "w", stderr);
-	log_debug("%s: starting", __FILE__);
+	vdebug("%s: starting", __FILE__);
 
 	ok(pipe(pipefd) == 0, "got a bi-directional pipe");
 	ok(nonblocking(pipefd[0]) == 0, "set O_NONBLOCK on read end of pipe");

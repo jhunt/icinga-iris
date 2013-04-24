@@ -6,7 +6,7 @@ int main(int argc, char **argv)
 {
 	plan_no_plan();
 	freopen("/dev/null", "w", stderr);
-	log_debug("%s: starting", __FILE__);
+	vdebug("%s: starting", __FILE__);
 
 	struct pdu pdu, copy;
 	time_t now;

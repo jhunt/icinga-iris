@@ -24,7 +24,7 @@ int main(int argc, char **argv)
 	ok((flags & O_NONBLOCK) == O_NONBLOCK, "O_NONBLOCK is set after call to nonblocking");
 
 	freopen("/dev/null", "w", stderr);
-	log_debug("%s: starting", __FILE__);
+	vdebug("%s: starting", __FILE__);
 
 	return exit_status();
 }

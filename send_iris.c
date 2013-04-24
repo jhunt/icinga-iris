@@ -3,9 +3,14 @@
 // make iris.o happy
 void iris_call_submit_result(struct pdu *pdu) { }
 int iris_call_recv_data(int fd) { return 0; }
-
-unsigned long CRC32[256] = {0};
-
+void vlog(unsigned int level, const char *fmt, ...)
+{
+	if (!level) return;
+	va_list ap; va_start(ap, fmt);
+	vfprintf(stderr, fmt, ap);
+	fprintf(stderr, "\n");
+	va_end(ap);
+}
 
 struct {
 	char *host;

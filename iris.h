@@ -48,6 +48,13 @@
 
 #define IRIS_PDU_V1  1
 
+// these match the NSLOG_* constants in icinga/logging.h
+#define LOG_ERROR     1
+#define LOG_WARN      2
+#define LOG_PROC      64
+#define LOG_RESULT    131072
+#define LOG_INFO      262144
+
 struct pdu {
 	uint32_t crc32;
 	uint32_t ts;
@@ -58,11 +65,10 @@ struct pdu {
 	char     output[IRIS_PDU_OUTPUT_LEN];
 };
 
-void log_info(const char *fmt, ...);
 #ifdef DEBUG
-#define log_debug log_info
+#define vdebug(LOG_INFO, __VA_ARGS__)
 #else
-static void log_debug(const char *fmt, ...) { }
+#define vdebug(...)
 #endif
 
 void strip(char *s);

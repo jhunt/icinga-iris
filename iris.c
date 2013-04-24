@@ -2,30 +2,9 @@
 
 extern void iris_call_submit_result(struct pdu *pdu);
 extern int iris_call_recv_data(int fd);
+extern void vlog(unsigned int level, const char *fmt, ...);
 
-static unsigned long CRC32[256] = {0};
-
-void log_info(const char *fmt, ...)
-{
-	va_list ap;
-#ifdef IRIS_EVENT_BROKER
-	char *buf;
-	int n;
-
-	va_start(ap, fmt);
-	n = vasprintf(&buf, fmt, ap);
-	va_end(ap);
-
-	write_to_all_logs(buf, NSLOG_INFO_MESSAGE);
-	free(buf);
-#else
-
-	va_start(ap, fmt);
-	vfprintf(stderr, fmt, ap);
-	fprintf(stderr, "\n");
-	va_end(ap);
-#endif
-}
+unsigned long CRC32[256] = {0};
 
 void strip(char *s)
 {
@@ -125,7 +104,7 @@ int pdu_unpack(struct pdu *pdu)
 	pdu->crc32 = 0L;
 	our_crc = crc32((char*)pdu, sizeof(struct pdu));
 	if (our_crc != their_crc) {
-		log_info("CRC mismatch (calculated %x != %x); discarding packet and closing connection",
+		vlog(LOG_INFO, "CRC mismatch (calculated %x != %x); discarding packet and closing connection",
 				our_crc, their_crc);
 		return -1;
 	}
@@ -135,7 +114,7 @@ int pdu_unpack(struct pdu *pdu)
 	pdu->ts      = ntohl(pdu->ts);      // LCOV_EXCL_LINE
 
 	if (pdu->version != IRIS_PROTOCOL_VERSION) {
-		log_info("IRIS: incorrect PDU version (got %d, wanted %d)", pdu->version, IRIS_PROTOCOL_VERSION);
+		vlog(LOG_INFO, "IRIS: incorrect PDU version (got %d, wanted %d)", pdu->version, IRIS_PROTOCOL_VERSION);
 		return -1;
 	}
 
@@ -147,7 +126,7 @@ int pdu_unpack(struct pdu *pdu)
 		age = (long)(now - pdu->ts);
 	}
 	if (age > 900) { // FIXME: configuration file?
-		log_info("Packet age is %ds in the %s", age,
+		vlog(LOG_INFO, "Packet age is %ds in the %s", age,
 			(pdu->ts > (uint32_t)(now) ? "future" : "past"));
 		return -1;
 	}
@@ -168,7 +147,7 @@ int net_bind(const char *host, const char *port)
 
 	rc = getaddrinfo(host, port, &hints, &res);
 	if (rc != 0) {
-		log_info("IRIS: getaddrinfo failed: %s", gai_strerror(rc));
+		vlog(LOG_ERROR, "IRIS: getaddrinfo failed: %s", gai_strerror(rc));
 		return -1;
 	}
 
@@ -217,32 +196,32 @@ int net_accept(int sockfd, int epfd)
 	socklen_t in_len = sizeof(in_addr);
 	struct epoll_event ev;
 
-	log_debug("IRIS DEBUG: accepting inbound connection");
+	vdebug("IRIS: accepting inbound connection");
 	int connfd = accept(sockfd, (struct sockaddr*)&in_addr, &in_len);
 	if (connfd < 0) {
 		// EAGAIN / EWOULDBLOCK == no more pending connections
 		if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) return -1;
 
-		log_info("IRIS: accept failed: %s", strerror(errno));
+		vlog(LOG_WARN, "IRIS: accept failed: %s", strerror(errno));
 		return -1;
 	}
 
 	if (nonblocking(connfd) < 0) {
-		log_info("IRIS: failed to make new socket non-blocking: %s", strerror(errno));
-		log_debug("IRIS DEBUG: closing fd %d", connfd);
+		vlog(LOG_ERROR, "IRIS: failed to make new socket non-blocking: %s", strerror(errno));
+		vdebug("IRIS: closing fd %d", connfd);
 		close(connfd);
 		return -1;
 	}
 
 	char addr[INET_ADDRSTRLEN];
 	inet_ntop(AF_INET, &(in_addr.sin_addr), addr, INET_ADDRSTRLEN);
-	log_debug("IRIS DEBUG: accepted inbound connection from %s on fd %d", addr, connfd);
+	vdebug("IRIS: accepted inbound connection from %s on fd %d", addr, connfd);
 
 	ev.data.fd = connfd;
 	ev.events = EPOLLIN | EPOLLET;
 	if (epoll_ctl(epfd, EPOLL_CTL_ADD, connfd, &ev) != 0) {
-		log_info("IRIS: failed to inform epoll about new socket fd: %s", strerror(errno));
-		log_debug("IRIS DEBUG: closing fd %d", connfd);
+		vlog(LOG_ERROR, "IRIS: failed to inform epoll about new socket fd: %s", strerror(errno));
+		vdebug("IRIS: closing fd %d", connfd);
 		close(connfd);
 		return -1;
 	}
@@ -338,11 +317,11 @@ void mainloop(int sockfd, int epfd)
 
 	for (;;) {
 		n = epoll_wait(epfd, events, sizeof(events), -1);
-		log_debug("IRIS DEBUG: epoll gave us %d fds to work with", n);
+		vdebug("IRIS: epoll gave us %d fds to work with", n);
 
 		for (i = 0; i < n; i++) {
 #ifdef DEBUG
-			log_debug("IRIS DEBUG: activity on %d: %04x =%s%s%s%s",
+			vdebug("IRIS: activity on %d: %04x =%s%s%s%s",
 					events[i].data.fd, events[i].events,
 					(events[i].events & EPOLLERR   ? " EPOLLERR"   : ""),
 					(events[i].events & EPOLLHUP   ? " EPOLLHUP"   : ""),
@@ -356,14 +335,14 @@ void mainloop(int sockfd, int epfd)
 			    (events[i].events & EPOLLRDHUP) || // client shutdown(x, SHUT_WR)
 			    !(events[i].events & EPOLLIN)) {   // not really readable (???)
 
-				log_debug("IRIS DEBUG: closing fd %d", events[i].data.fd);
+				vdebug("IRIS: closing fd %d", events[i].data.fd);
 				close(events[i].data.fd);
 				continue;
 			}
 
 			// CONNECT event
 			if (events[i].data.fd == sockfd) {
-				log_debug("IRIS DEBUG: processing inbound connections", sockfd);
+				vdebug("IRIS: processing inbound connections", sockfd);
 				while (net_accept(sockfd, epfd) >= 0)
 					;
 
@@ -373,12 +352,12 @@ void mainloop(int sockfd, int epfd)
 						break;
 
 					case -2:
-						log_debug("IRIS DEBUG: mainloop terminating on request");
+						vdebug("IRIS: mainloop terminating on request");
 						return;
 
 					case -1:
 					default:
-						log_debug("IRIS DEBUG: closing fd %d", events[i].data.fd);
+						vdebug("IRIS: closing fd %d", events[i].data.fd);
 						close(events[i].data.fd);
 				}
 			}
@@ -391,30 +370,31 @@ int recv_data(int fd)
 	struct pdu pdu;
 	ssize_t len;
 
-	log_debug("IRIS DEBUG: reading from fd %d", fd);
+	vdebug("IRIS: reading from fd %d", fd);
 	for (;;) {
-		log_debug("Reading from fd %d", fd);
+		vdebug("Reading from fd %d", fd);
 		memset(&pdu, 0, sizeof(pdu));
 		len = pdu_read(fd, (char*)&pdu);
-		log_debug("IRIS: read %d bytes from fd %d", len, fd);
+		vdebug("IRIS: read %d bytes from fd %d", len, fd);
 
 		if (len <= 0) {
 			if (errno == EAGAIN) return 0;
 			if (len == 0)
-				log_debug("IRIS DEBUG: reached EOF on fd %d", fd);
+				vdebug("IRIS: reached EOF on fd %d", fd);
 			else
-				log_info("IRIS: failed to read from fd %d: %s", fd, strerror(errno));
+				vlog(LOG_INFO, "IRIS: failed to read from fd %d: %s", fd, strerror(errno));
 			return -1;
 		}
 
 		if (pdu_unpack(&pdu) != 0) {
 			// FIXME: stop using fds, start using client IP
-			log_info("IRIS: discarding bogus packet from fd %d", fd);
+			vlog(LOG_WARN, "IRIS: discarding bogus packet from fd %d", fd);
 			return -1;
 		}
 
-		log_info("IRIS: SERVICE RESULT v%d [%d] %s/%s (rc:%d) '%s'",
-			pdu.version, (uint32_t)pdu.ts, pdu.host, pdu.service, pdu.rc, pdu.output);
+		vlog(LOG_RESULT, "IRIS: SERVICE RESULT %04x v%d [%d] %s/%s (rc:%d) '%s'",
+				pdu.crc32, pdu.version, (uint32_t)pdu.ts,
+				pdu.host, pdu.service, pdu.rc, pdu.output);
 
 		iris_call_submit_result(&pdu);
 	}

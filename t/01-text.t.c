@@ -21,7 +21,7 @@ int main(int argc, char **argv)
 {
 	plan_tests(2);
 	freopen("/dev/null", "w", stderr);
-	log_debug("%s: starting", __FILE__);
+	vdebug("%s: starting", __FILE__);
 
 	char *got;
 
@@ -32,9 +32,6 @@ int main(int argc, char **argv)
 	got = strdup(" \t \t \t \t");
 	strip(got);
 	string_is(got, "", "strip(<all whitespace>) returns empty string");
-
-	// this is here for coverage
-	log_info("# XYZZY: %s is working!", "logging");
 
 	return exit_status();
 }

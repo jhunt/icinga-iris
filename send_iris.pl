@@ -22,6 +22,10 @@ GetOptions(\%OPTIONS,
 	'timeout|t=i',
 	'port|p=i',
 	'delimiter|d=s',
+
+	'debug|D',
+
+	'config|c=s',
 );
 if (!$OPTIONS{host}) {
 	print STDERR "Missing required -H option\n";
@@ -71,6 +75,13 @@ while (<STDIN>) {
 	$pdu = pack("NNnnZ64Z128Z4096", 0,           $ts, 1, $rc, $host, $service, $output);
 	$pdu = pack("NNnnZ64Z128Z4096", crc32($pdu), $ts, 1, $rc, $host, $service, $output);
 	push @packets, $pdu;
+
+	if ($OPTIONS{debug}) {
+		open $od, "-|", "/usr/bin/od -a"
+			or die "Failed to exec `od -a' for PDU debugging: $!\n";
+		print $od $pdu;
+		close $od;
+	}
 }
 
 my $peer = "$OPTIONS{host}:$OPTIONS{port}";

@@ -14,6 +14,7 @@ int iris_call_recv_data(int fd)
 	if (children <= 0) return -2; // force loop exit
 	return -1; // force a close
 }
+void vlog(unsigned int level, const char *fmt, ...) { }
 
 int child_main(int rc)
 {
@@ -43,7 +44,7 @@ int main(int argc, char **argv)
 	int sockfd, epfd;
 
 	freopen("/dev/null", "w", stderr);
-	log_debug("%s: starting", __FILE__);
+	vdebug("%s: starting", __FILE__);
 
 	ok(net_poller(-1) < 0, "net_poller startup fails with bad sockfd");
 

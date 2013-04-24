@@ -1,6 +1,9 @@
 #include "iris.h"
 
-unsigned long CRC32[256] = {0};
+extern void iris_call_submit_result(struct pdu *pdu);
+extern int iris_call_recv_data(int fd);
+
+static unsigned long CRC32[256] = {0};
 
 void log_info(const char *fmt, ...)
 {
@@ -76,9 +79,9 @@ int nonblocking(int fd)
 	return 0;
 }
 
-size_t pdu_read(int fd, char *buf)
+ssize_t pdu_read(int fd, char *buf)
 {
-	size_t n, len = 4300;
+	ssize_t n, len = 4300;
 	char *off = buf;
 
 	errno = 0;
@@ -88,11 +91,12 @@ size_t pdu_read(int fd, char *buf)
 	return n < 0 ? n : off - buf;
 }
 
-size_t pdu_write(int fd, const char *buf)
+ssize_t pdu_write(int fd, const char *buf)
 {
-	size_t n, len = 4300;
+	ssize_t n, len = 4300;
 	const char *off = buf;
 
+	errno = 0;
 	while ((n = write(fd, off, len)) > 0) {
 		 off += n; len -= n;
 	}
@@ -186,17 +190,11 @@ int net_bind(const char *host, const char *port)
 
 	freeaddrinfo(head);
 
-	if (nonblocking(fd) != 0) {
-		log_info("IRIS: failed to set O_NONBLOCK on network socket");
+	if (nonblocking(fd) != 0 || listen(fd, SOMAXCONN) < 0) {
 		close(fd);
 		return -1;
 	}
 
-	if (listen(fd, SOMAXCONN) < 0) {
-		log_info("IRIS: failed to listen() on socket fd %d", fd);
-		close(fd);
-		return -1;
-	}
 	return fd;
 }
 
@@ -333,7 +331,7 @@ int read_packets(FILE *io, struct pdu **result, const char *delim)
 	return n;
 }
 
-void mainloop(int sockfd, int epfd, fdhandler fn, evhandler evfn)
+void mainloop(int sockfd, int epfd)
 {
 	int i, n;
 	struct epoll_event events[IRIS_EPOLL_MAXFD];
@@ -370,7 +368,7 @@ void mainloop(int sockfd, int epfd, fdhandler fn, evhandler evfn)
 					;
 
 			} else if (events[i].events & EPOLLIN) {
-				switch ((*fn)(events[i].data.fd, evfn)) {
+				switch (iris_call_recv_data(events[i].data.fd)) {
 					case 0:
 						break;
 
@@ -388,19 +386,24 @@ void mainloop(int sockfd, int epfd, fdhandler fn, evhandler evfn)
 	}
 }
 
-int recv_data(int fd, evhandler handler)
+int recv_data(int fd)
 {
 	struct pdu pdu;
-	size_t len;
+	ssize_t len;
 
 	log_debug("IRIS DEBUG: reading from fd %d", fd);
 	for (;;) {
+		log_debug("Reading from fd %d", fd);
 		memset(&pdu, 0, sizeof(pdu));
 		len = pdu_read(fd, (char*)&pdu);
+		log_debug("IRIS: read %d bytes from fd %d", len, fd);
 
 		if (len <= 0) {
 			if (errno == EAGAIN) return 0;
-			log_info("IRIS: failed to read from fd %d: %s", fd, strerror(errno));
+			if (len == 0)
+				log_info("IRIS: reached EOF on fd %d", fd);
+			else
+				log_info("IRIS: failed to read from fd %d: %s", fd, strerror(errno));
 			return -1;
 		}
 
@@ -413,8 +416,7 @@ int recv_data(int fd, evhandler handler)
 		log_info("IRIS: SERVICE RESULT v%d [%d] %s/%s (rc:%d) '%s'",
 			pdu.version, (uint32_t)pdu.ts, pdu.host, pdu.service, pdu.rc, pdu.output);
 
-		if (handler)
-			(*handler)(&pdu);
+		iris_call_submit_result(&pdu);
 	}
 	return 0;
 }

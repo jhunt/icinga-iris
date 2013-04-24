@@ -34,8 +34,7 @@
 
 
 // FIXME: default port needs to be 5668
-#define IRIS_DEFAULT_PORT          5667
-#define IRIS_DEFAULT_PORT_STRING  "5667"
+#define IRIS_DEFAULT_PORT         "5667"
 #define IRIS_DEFAULT_TIMEOUT         10
 #define IRIS_PROTOCOL_VERSION         1
 
@@ -59,9 +58,6 @@ struct pdu {
 	char     output[IRIS_PDU_OUTPUT_LEN];
 };
 
-typedef void (*evhandler)(struct pdu*);
-typedef int (*fdhandler)(int,evhandler);
-
 void log_info(const char *fmt, ...);
 #ifdef DEBUG
 #define log_debug log_info
@@ -74,8 +70,8 @@ void init_crc32(void);
 unsigned long crc32(char *buf, int len);
 int nonblocking(int fd);
 
-size_t pdu_read(int fd, char *buf);
-size_t pdu_write(int fd, const char *buf);
+ssize_t pdu_read(int fd, char *buf);
+ssize_t pdu_write(int fd, const char *buf);
 
 int pdu_pack(struct pdu *pdu);
 int pdu_unpack(struct pdu *pdu);
@@ -88,7 +84,7 @@ int net_connect(const char *host, unsigned short port);
 int fd_sink(int fd);
 int read_packets(FILE *io, struct pdu **packets, const char *delim);
 
-void mainloop(int sockfd, int epfd, fdhandler fn, evhandler evfn);
-int recv_data(int fd, evhandler fn);
+void mainloop(int sockfd, int epfd);
+int recv_data(int fd);
 
 #endif

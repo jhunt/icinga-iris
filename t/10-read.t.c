@@ -1,12 +1,13 @@
 #include "tap.c"
 #include "../iris.h"
+#include "dummy-calls.c"
 
 int main(int argc, char **argv)
 {
 	plan_no_plan();
 
 	int pipefd[2];
-	size_t len;
+	ssize_t len;
 	char buf[4300];
 
 	/** send exactly one packet **/
@@ -111,7 +112,7 @@ int main(int argc, char **argv)
 	}
 	close(pipefd[1]);
 	int i;
-	size_t total = 0;
+	ssize_t total = 0;
 	for (i = 0; i < 100; i++) {
 		len = pdu_read(pipefd[0], buf);
 		total += len;

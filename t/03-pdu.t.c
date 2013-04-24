@@ -1,5 +1,6 @@
 #include "tap.c"
 #include "../iris.h"
+#include "dummy-calls.c"
 
 int main(int argc, char **argv)
 {

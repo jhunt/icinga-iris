@@ -9,6 +9,14 @@ int num_packets    = 0;
 
 void timedout(int sig) { _exit(5); }
 
+int iris_call_recv_data(int fd) { return 0; }
+void iris_call_submit_result(struct pdu *pdu)
+{
+	ok(pdu->rc == num_packets % 3, "Got packet with RC %d (expect %d)",
+			pdu->rc, num_packets % 3);
+	num_packets++;
+}
+
 int child_main(int fd)
 {
 	int i;
@@ -35,14 +43,6 @@ int child_main(int fd)
 	return 0;
 }
 
-// test evhandler
-void test_submit(struct pdu *pdu)
-{
-	ok(pdu->rc == num_packets % 3, "Got packet with RC %d (expect %d)",
-			pdu->rc, num_packets % 3);
-	num_packets++;
-}
-
 int main(int argc, char **argv)
 {
 	int pipefd[2];
@@ -60,7 +60,7 @@ int main(int argc, char **argv)
 		_exit(child_main(pipefd[1]));
 	}
 	close(pipefd[1]);
-	recv_data(pipefd[0], test_submit);
+	recv_data(pipefd[0]);
 	ok(num_packets == expect_packets, "received all %d packets (expected %d)",
 			num_packets, expect_packets);
 	close(pipefd[0]);
@@ -75,7 +75,7 @@ int main(int argc, char **argv)
 		_exit(child_main(pipefd[1]));
 	}
 	close(pipefd[1]);
-	recv_data(pipefd[0], test_submit);
+	recv_data(pipefd[0]);
 	ok(num_packets == expect_packets, "received all %d packets (expected %d)",
 			num_packets, expect_packets);
 	close(pipefd[0]);
@@ -94,7 +94,7 @@ int main(int argc, char **argv)
 		_exit(6);
 	}
 	close(pipefd[1]);
-	recv_data(pipefd[0], test_submit);
+	recv_data(pipefd[0]);
 	ok(num_packets == expect_packets, "received all %d packets (expected %d)",
 			num_packets, expect_packets);
 	close(pipefd[0]);
@@ -115,7 +115,7 @@ int main(int argc, char **argv)
 	}
 	close(pipefd[1]);
 	ok(nonblocking(pipefd[0]) == 0, "set O_NONBLOCK on read end of pipe");
-	recv_data(pipefd[0], test_submit);
+	recv_data(pipefd[0]);
 	ok(num_packets == expect_packets, "received all %d packets (expected %d)",
 			num_packets, expect_packets);
 	close(pipefd[0]);
@@ -132,7 +132,7 @@ int main(int argc, char **argv)
 		_exit(3);
 	}
 	close(pipefd[1]);
-	recv_data(pipefd[0], test_submit);
+	recv_data(pipefd[0]);
 	ok(num_packets == expect_packets, "received all %d packets (expected %d)",
 			num_packets, expect_packets);
 	close(pipefd[0]);

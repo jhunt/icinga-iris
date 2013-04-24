@@ -1,5 +1,6 @@
 #include "tap.c"
 #include "../iris.h"
+#include "dummy-calls.c"
 
 #define NET_HOST     "127.0.0.1"
 #define NET_HOST_DNS "localhost"

@@ -1,5 +1,6 @@
 #include "tap.c"
 #include "../iris.h"
+#include "dummy-calls.c"
 
 void _string_is(const char *got, const char *want,
 		const char *fn, char *file, unsigned int line, char *test)

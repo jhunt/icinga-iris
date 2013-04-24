@@ -24,7 +24,7 @@ pthread_t tid;
 
 /*************************************************************/
 
-static void iris_submit_result(struct pdu *pdu)
+void iris_call_submit_result(struct pdu *pdu)
 {
 	check_result *res = malloc(sizeof(check_result));
 	init_check_result(res);
@@ -54,14 +54,21 @@ static void iris_submit_result(struct pdu *pdu)
 	log_debug("IRIS DEBUG: submitted result to main process");
 }
 
-static void* iris_daemon(void *udata)
+int iris_call_recv_data(int fd)
+{
+	return recv_data(fd);
+}
+
+void* iris_daemon(void *udata)
 {
 	int sockfd, epfd;
-	log_info("IRIS: starting up the iris daemon on *:%d", IRIS_DEFAULT_PORT);
+	log_info("IRIS: starting up the iris daemon on *:%s", IRIS_DEFAULT_PORT);
 
 	// bind and listen on our port, all interfaces
-	if ((sockfd = net_bind(NULL, IRIS_DEFAULT_PORT_STRING)) < 0)
+	if ((sockfd = net_bind(NULL, IRIS_DEFAULT_PORT)) < 0) {
+		log_info("IRIS: Failed to bind to *:%s: %s", IRIS_DEFAULT_PORT, strerror(errno));
 		exit(2);
+	}
 
 	// start up epoll
 	if ((epfd = net_poller(sockfd)) < 0) {
@@ -70,7 +77,7 @@ static void* iris_daemon(void *udata)
 	}
 
 	// and loop
-	mainloop(sockfd, epfd, recv_data, iris_submit_result);
+	mainloop(sockfd, epfd);
 
 	// cleanup
 	close(sockfd);
@@ -78,13 +85,14 @@ static void* iris_daemon(void *udata)
 	return NULL;
 }
 
-static int iris_hook(int event, void *data)
+int iris_hook(int event, void *data)
 {
 	if (event != NEBCALLBACK_PROCESS_DATA) return 0;
 
 	nebstruct_process_data *proc = (nebstruct_process_data*)data;
 	if (proc->type != NEBTYPE_PROCESS_EVENTLOOPSTART) return 0;
 
+	log_info("IRIS: v" VERSION " starting up");
 	pthread_create(&tid, 0, iris_daemon, data);
 	return 0;
 }
@@ -96,9 +104,7 @@ int nebmodule_init(int flags, char *args, nebmodule *mod)
 	int rc;
 	IRIS_MODULE = mod;
 
-	log_info("IRIS: v" VERSION " starting up");
-	log_debug("IRIS DEBUG: flags=%d, args='%s'", flags, args);
-
+	log_debug("IRIS DEBUG: INIT - flags=%d, args='%s'", flags, args);
 	log_debug("IRIS DEBUG: registering callbacks");
 	rc = neb_register_callback(NEBCALLBACK_PROCESS_DATA, IRIS_MODULE, 0, iris_hook);
 	if (rc != 0) {

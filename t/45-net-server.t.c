@@ -4,6 +4,17 @@
 #define NET_HOST "127.0.0.1"
 #define NET_PORT "12356"
 
+int children = 0;
+void iris_call_submit_result(struct pdu *pdu) { }
+int iris_call_recv_data(int fd)
+{
+	pass("saw fd %d (%d children still active)", fd, --children);
+	fd_sink(fd);
+
+	if (children <= 0) return -2; // force loop exit
+	return -1; // force a close
+}
+
 int child_main(int rc)
 {
 	struct pdu pdu;
@@ -24,17 +35,6 @@ int child_main(int rc)
 	shutdown(fd, SHUT_WR);
 	close(fd);
 	return 0;
-}
-
-int children = 0;
-
-int test_mainloop(int fd, evhandler fn)
-{
-	pass("saw fd %d (%d children still active)", fd, --children);
-	fd_sink(fd);
-
-	if (children <= 0) return -2; // force loop exit
-	return -1; // force a close
 }
 
 int main(int argc, char **argv)
@@ -66,7 +66,7 @@ int main(int argc, char **argv)
 	if (fork() == 0) _exit(child_main(3));
 	children = 4;
 
-	mainloop(sockfd, epfd, test_mainloop, NULL);
+	mainloop(sockfd, epfd);
 	pass("all done");
 
 	return exit_status();

@@ -1,4 +1,4 @@
-CFLAGS  := -Wall -Iicinga -O
+CFLAGS  := -Wall -Iicinga -O -g
 LCOV    := lcov --directory . --base-directory .
 GENHTML := genhtml --prefix $(shell dirname `pwd`)
 # -e '' tempers prove's insistence that everything is Perl
@@ -9,6 +9,10 @@ ifneq ($(DEVEL),)
 	CFLAGS  += -DDEBUG
 
 	LDFLAGS += -fprofile-arcs -ftest-coverage -lgcov
+else
+	ifneq ($(DEBUG),)
+		CFLAGS += -DDEBUG
+	endif
 endif
 
 

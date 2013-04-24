@@ -1,5 +1,12 @@
 #include "iris.h"
 
+// make iris.o happy
+void iris_call_submit_result(struct pdu *pdu) { }
+int iris_call_recv_data(int fd) { return 0; }
+
+unsigned long CRC32[256] = {0};
+
+
 struct {
 	char *host;
 	int   port;
@@ -8,7 +15,7 @@ struct {
 	char  delim[2];
 } OPTS = {
 	.host    = NULL,
-	.port    = IRIS_DEFAULT_PORT,
+	.port    = 0,
 	.timeout = IRIS_DEFAULT_TIMEOUT,
 	.quiet   = 0,
 	.delim   = "\t"
@@ -60,7 +67,7 @@ int process_args(int argc, char **argv)
 			printf("\n");
 			printf("  -p <port>\n");
 			printf("      TCP port to connect to.\n");
-			printf("      Defaults to %d\n", IRIS_DEFAULT_PORT);
+			printf("      Defaults to %s\n", IRIS_DEFAULT_PORT);
 			printf("\n");
 			printf("  -t <timeout>\n");
 			printf("      Connection timeout, in seconds.\n");
@@ -76,6 +83,8 @@ int process_args(int argc, char **argv)
 		return 1;
 	}
 
+	if (OPTS.port == 0)
+		OPTS.port = atoi(IRIS_DEFAULT_PORT);
 	return 0;
 }
 

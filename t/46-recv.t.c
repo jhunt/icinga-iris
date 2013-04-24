@@ -7,10 +7,12 @@
 int expect_packets = 0;
 int num_packets    = 0;
 
+void timedout(int sig) { _exit(5); }
+
 int child_main(int fd)
 {
 	int i;
-	size_t n, len;
+	size_t len;
 	struct pdu pdu;
 	time_t now;
 
@@ -76,6 +78,64 @@ int main(int argc, char **argv)
 	ok(num_packets == expect_packets, "received all %d packets (expected %d)",
 			num_packets, expect_packets);
 	close(pipefd[0]);
+
+
+	// now, test the edge cases
+
+	// what if the client connects and then closes?
+	ok(pipe(pipefd) == 0, "got a bi-directional pipe");
+	ok(nonblocking(pipefd[0]) == 0, "set O_NONBLOCK on read end of pipe");
+	num_packets = 0;
+	expect_packets = 0;
+	if (fork() == 0) {
+		close(pipefd[0]);
+		close(pipefd[1]); // don't even send anything
+		_exit(6);
+	}
+	close(pipefd[1]);
+	recv_data(pipefd[0], test_submit);
+	ok(num_packets == expect_packets, "received all %d packets (expected %d)",
+			num_packets, expect_packets);
+	close(pipefd[0]);
+
+
+	// what if the client wants to read an IV packet (under a timeout)?
+	ok(pipe(pipefd) == 0, "got a bi-directional pipe");
+	num_packets = 0;
+	expect_packets = 0;
+	if (fork() == 0) {
+		char buf[8192];
+		signal(SIGALRM, timedout);
+		alarm(2);
+		read(pipefd[0], buf, 8192);
+		// should have to timeout
+		// but just in case...
+		_exit(33);
+	}
+	close(pipefd[1]);
+	ok(nonblocking(pipefd[0]) == 0, "set O_NONBLOCK on read end of pipe");
+	recv_data(pipefd[0], test_submit);
+	ok(num_packets == expect_packets, "received all %d packets (expected %d)",
+			num_packets, expect_packets);
+	close(pipefd[0]);
+
+
+	// what if the client writes less than one packet?
+	ok(pipe(pipefd) == 0, "got a bi-directional pipe");
+	ok(nonblocking(pipefd[0]) == 0, "set O_NONBLOCK on read end of pipe");
+	num_packets = 0;
+	expect_packets = 0;
+	if (fork() == 0) {
+		close(pipefd[0]);
+		write(pipefd[1], "OH HAI!", 7);
+		_exit(3);
+	}
+	close(pipefd[1]);
+	recv_data(pipefd[0], test_submit);
+	ok(num_packets == expect_packets, "received all %d packets (expected %d)",
+			num_packets, expect_packets);
+	close(pipefd[0]);
+
 
 	return exit_status();
 }

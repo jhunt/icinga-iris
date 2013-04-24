@@ -45,6 +45,7 @@ clean: cleancov
 .PHONY: clean
 cleancov:
 	find . -name '*.gcda' -o -name '*.gcno' 2>/dev/null | xargs rm -f
+	rm -rf coverage
 .PHONY: cleancov
 
 benchmark:

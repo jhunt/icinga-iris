@@ -26,12 +26,21 @@ int child_main(int rc)
 	return 0;
 }
 
+int children = 0;
+
+int test_mainloop(int fd, evhandler fn)
+{
+	pass("saw fd %d (%d children still active)", fd, --children);
+	fd_sink(fd);
+
+	if (children <= 0) return -2; // force loop exit
+	return -1; // force a close
+}
+
 int main(int argc, char **argv)
 {
 	plan_no_plan();
 	int sockfd, epfd;
-	int n, children;
-	struct epoll_event events[8];
 
 	ok(net_poller(-1) < 0, "net_poller startup fails with bad sockfd");
 	freopen("/dev/null", "w", stderr);
@@ -55,38 +64,7 @@ int main(int argc, char **argv)
 	if (fork() == 0) _exit(child_main(3));
 	children = 4;
 
-	for (;;) {
-		n = epoll_wait(epfd, events, sizeof(events), -1);
-		ok(n > 0, "got more than 1 event from epoll_wait");
-
-		int i;
-		for (i = 0; i < n; i++) {
-			if ((events[i].events & EPOLLERR) ||
-			    (events[i].events & EPOLLHUP) ||
-			    (events[i].events & EPOLLRDHUP) ||
-			    (!(events[i].events & EPOLLIN))) {
-
-				close(events[i].data.fd);
-				children--;
-
-			} else if (events[i].data.fd == sockfd) {
-				while (net_accept(sockfd, epfd) >= 0)
-					;
-
-			} else if (events[i].events & EPOLLIN) {
-				fd_sink(events[i].data.fd);
-
-				// unceremoniously close the fd
-				close(events[i].data.fd);
-				children--;
-			}
-		}
-
-		// anybody left?
-		if (!children) break;
-	}
-
-	close(sockfd);
+	mainloop(sockfd, epfd, test_mainloop, NULL);
 	pass("all done");
 
 	return exit_status();

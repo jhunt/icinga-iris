@@ -370,9 +370,18 @@ void mainloop(int sockfd, int epfd, fdhandler fn, evhandler evfn)
 					;
 
 			} else if (events[i].events & EPOLLIN) {
-				if ((*fn)(events[i].data.fd, evfn) != 0) {
-					log_debug("IRIS DEBUG: closing fd %d", events[i].data.fd);
-					close(events[i].data.fd);
+				switch ((*fn)(events[i].data.fd, evfn)) {
+					case 0:
+						break;
+
+					case -2:
+						log_debug("IRIS DEBUG: mainloop terminating on request");
+						return;
+
+					case -1:
+					default:
+						log_debug("IRIS DEBUG: closing fd %d", events[i].data.fd);
+						close(events[i].data.fd);
 				}
 			}
 		}
@@ -390,7 +399,7 @@ int recv_data(int fd, evhandler handler)
 		len = pdu_read(fd, (char*)&pdu);
 
 		if (len <= 0) {
-			if (len == 0 || errno == EAGAIN) return 0;
+			if (errno == EAGAIN) return 0;
 			log_info("IRIS: failed to read from fd %d: %s", fd, strerror(errno));
 			return -1;
 		}

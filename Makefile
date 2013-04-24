@@ -16,11 +16,15 @@ test_runners := $(subst .t.c,.t,$(shell ls -1 t/*.t.c))
 no_lcov_c := test/*.t
 
 
-all: libiris.so send_iris
-libiris.so: iris.lo broker.lo
+all: iris.so send_iris
+iris.so: iris.lo broker.lo
 	libtool --mode link gcc $(CFLAGS) -o libiris.la $+ -rpath /usr/lib -lm -lpthread
+	mv .libs/libiris.so.0.0.0 $@
 send_iris: iris.o send_iris.o
 
+
+stat: all
+	sha1sum iris.so send_iris
 
 test-runners: $(test_runners)
 .PHONY: test-runners

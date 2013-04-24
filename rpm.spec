@@ -1,5 +1,5 @@
 Name: icinga-iris
-Version: 1.0.0
+Version: 1.0.3
 Release: %{_release}
 License: Proprietary
 Source: %{name}-%{version}.tar.gz
@@ -41,7 +41,7 @@ make
 
 %install
 [ "$RPM_BUILD_ROOT" != "/" ] && rm -rf $RPM_BUILD_ROOT
-install -D -m 0755 .libs/libiris.so ${RPM_BUILD_ROOT}%{_libdir}/icinga/iris.so
+install -D -m 0755 iris.so ${RPM_BUILD_ROOT}%{_libdir}/icinga/iris.so
 install -D -m 0755 send_iris ${RPM_BUILD_ROOT}%{_bindir}/send_iris
 
 %clean

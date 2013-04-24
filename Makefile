@@ -49,6 +49,7 @@ coverage:
 clean: cleancov
 	rm -f *.o *.so *.lo
 	rm -f t/*.o t/*.t
+	rm -f lcov.info
 	rm -f send_iris
 .PHONY: clean
 cleancov:

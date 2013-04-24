@@ -84,7 +84,6 @@ int main(int argc, char **argv)
 	struct pdu *packets = NULL;
 	int npackets = 0, nsent = 0;
 	int sock, i;
-	size_t len;
 	time_t now;
 
 	if (process_args(argc, argv) != 0)
@@ -104,7 +103,7 @@ int main(int argc, char **argv)
 		time(&now); packets[i].ts = (uint32_t)now;
 		pdu_pack(&packets[i]);
 
-		if (pdu_write(sock, (char*)&packets[i], len) < 0) {
+		if (pdu_write(sock, (char*)&packets[i]) < 0) {
 			fprintf(stderr, "error sending data to %s:%d\n", OPTS.host, OPTS.port);
 			close(sock);
 			alarm(0); exit(3);

@@ -82,13 +82,14 @@ int process_args(int argc, char **argv)
 int main(int argc, char **argv)
 {
 	struct pdu *packets = NULL;
-	unsigned int npackets = 0, nsent = 0;
-	int sock, i, len;
+	int npackets = 0, nsent = 0;
+	int sock, i;
+	size_t len;
 
 	if (process_args(argc, argv) != 0)
 		exit(3);
 
-	int npackets = read_packets(stdin, &packets, OPTS.delim);
+	npackets = read_packets(stdin, &packets, OPTS.delim);
 
 	signal(SIGALRM, alarm_handler);
 	alarm(OPTS.timeout);
@@ -103,7 +104,7 @@ int main(int argc, char **argv)
 		pdu_pack(&packets[i]);
 
 		len = sizeof(struct pdu);
-		if (pdu_send(sock, &packets[i]) < 0) {
+		if (pdu_send(sock, (char*)&packets[i], &len) < 0) {
 			fprintf(stderr, "error sending data to %s:%d\n", OPTS.host, OPTS.port);
 			close(sock);
 			alarm(0); exit(3);

@@ -86,13 +86,13 @@ int pdu_read(int fd, char *buf, size_t *len)
 		 off += n; *len -= n;
 	}
 	*len = off - buf;
-	return n;
+	return n < 0 ? n : *len;
 }
 
 int pdu_send(int fd, const char *buf, size_t *len)
 {
 	ssize_t n;
-	char *off = buf;
+	const char *off = buf;
 
 	while ((n = write(fd, off, *len)) > 0) {
 		 off += n; *len -= n;
@@ -333,4 +333,83 @@ int read_packets(FILE *io, struct pdu **result, const char *delim)
 
 	*result = list;
 	return n;
+}
+
+void mainloop(int sockfd, int epfd, fdhandler fn, evhandler evfn)
+{
+	int i, n;
+	struct epoll_event events[IRIS_EPOLL_MAXFD];
+
+	for (;;) {
+		n = epoll_wait(epfd, events, sizeof(events), -1);
+		log_debug("IRIS DEBUG: epoll gave us %d fds to work with", n);
+
+		for (i = 0; i < n; i++) {
+#ifdef DEBUG
+			log_debug("IRIS DEBUG: activity on %d: %04x =%s%s%s%s",
+					events[i].data.fd, events[i].events,
+					(events[i].events & EPOLLERR   ? " EPOLLERR"   : ""),
+					(events[i].events & EPOLLHUP   ? " EPOLLHUP"   : ""),
+					(events[i].events & EPOLLRDHUP ? " EPOLLRDHUP" : ""),
+					(events[i].events & EPOLLIN    ? " EPOLLIN"    : ""));
+#endif
+
+			// ERROR event
+			if ((events[i].events & EPOLLERR)   || // error on fd
+			    (events[i].events & EPOLLHUP)   || // force closure (thanks, kernel)
+			    (events[i].events & EPOLLRDHUP) || // client shutdown(x, SHUT_WR)
+			    !(events[i].events & EPOLLIN)) {   // not really readable (???)
+
+				log_debug("IRIS DEBUG: closing fd %d", events[i].data.fd);
+				close(events[i].data.fd);
+				continue;
+			}
+
+			// CONNECT event
+			if (events[i].data.fd == sockfd) {
+				log_debug("IRIS DEBUG: processing inbound connections", sockfd);
+				while (net_accept(sockfd, epfd) >= 0)
+					;
+
+			} else if (events[i].events & EPOLLIN) {
+				if ((*fn)(events[i].data.fd, evfn) != 0) {
+					log_debug("IRIS DEBUG: closing fd %d", events[i].data.fd);
+					close(events[i].data.fd);
+				}
+			}
+		}
+	}
+}
+
+int recv_data(int fd, evhandler handler)
+{
+	int rc, eof;
+	struct pdu pdu;
+	size_t len;
+
+	log_debug("IRIS DEBUG: reading from fd %d", fd);
+	for (;;) {
+		memset(&pdu, 0, len = sizeof(pdu));
+		rc = pdu_read(fd, (char*)&pdu, &len);
+		log_debug("IRIS DEBUG: pdu_read(%d) returned %d, read %d bytes", fd, rc, len);
+
+		if (rc <= 0) {
+			if (rc == 0 || errno == EAGAIN) return 0;
+			log_info("IRIS: failed to read from fd %d: %s", fd, strerror(errno));
+			return -1;
+		}
+
+		if (pdu_unpack(&pdu) != 0) {
+			// FIXME: stop using fds, start using client IP
+			log_info("IRIS: discarding bogus packet from fd %d", fd);
+			return -1;
+		}
+
+		log_info("IRIS: SERVICE RESULT v%d [%d] %s/%s (rc:%d) '%s'",
+			pdu.version, (uint32_t)pdu.ts, pdu.host, pdu.service, pdu.rc, pdu.output);
+
+		if (handler)
+			(*handler)(&pdu);
+	}
+	return 0;
 }

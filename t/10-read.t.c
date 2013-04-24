@@ -26,7 +26,7 @@ int main(int argc, char **argv)
 	len = 4300;
 	rc = pdu_read(pipefd[0], buf, &len);
 
-	ok(rc == 0, "rc (%i) == 0 after call to read exactly 4300 bytes", rc);
+	ok(rc  == 4300, "rc (%i) == 4300 after call to read exactly 4300 bytes", rc);
 	ok(len == 4300, "value-result `len' param is size of packet buffer");
 	ok(strcmp(buf, "a solitary packet") == 0, "read correct packet");
 	close(pipefd[0]);
@@ -50,14 +50,14 @@ int main(int argc, char **argv)
 	len = 4300;
 	rc = pdu_read(pipefd[0], buf, &len);
 
-	ok(rc == 0, "rc (%i) == 0 after call to read exactly 4300 bytes (1 of 2)", rc);
+	ok(rc == 4300, "rc (%i) == 4300 after call to read exactly 4300 bytes (1 of 2)", rc);
 	ok(len == 4300, "value-result `len' param is size of packet buffer");
 	ok(strcmp(buf, "packet the first!") == 0, "read correct packet (1 of 2)");
 
 	len = 4300;
 	rc = pdu_read(pipefd[0], buf, &len);
 
-	ok(rc == 0, "rc (%i) == 0 after call to read exactly 4300 bytes (2 of 2)", rc);
+	ok(rc == 4300, "rc (%i) == 4300 after call to read exactly 4300 bytes (2 of 2)", rc);
 	ok(len == 4300, "value-result `len' param is size of packet buffer");
 	ok(strcmp(buf, "packet the second!") == 0, "read correct packet (2 of 2)");
 	close(pipefd[0]);
@@ -79,7 +79,7 @@ int main(int argc, char **argv)
 	len = 4300;
 	rc = pdu_read(pipefd[0], buf, &len);
 
-	ok(rc == 0, "rc (%i) == 0 after call to read exactly 4300 bytes (short write)", rc);
+	ok(rc == 4, "rc (%i) == 4 after call to read exactly 4300 bytes (short write)", rc);
 	ok(len == 4, "value-result `len' param %lu should == 4", len);
 	ok(strcmp(buf, "It's") == 0, "read '%s' == expected 'It\\'s' (first 4 bytes of truncated string)", buf);
 	close(pipefd[0]);

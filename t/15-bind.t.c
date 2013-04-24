@@ -5,7 +5,7 @@ int main(int argc, char **argv)
 {
 	plan_tests(3);
 
-	freopen("/dev/null", ">", stderr);
+	freopen("/dev/null", "w", stderr);
 
 	int fd;
 	fd = net_bind("0.0.0.0", "5669");

@@ -39,6 +39,10 @@
 #define IRIS_DEFAULT_TIMEOUT         10
 #define IRIS_PROTOCOL_VERSION         1
 
+/* Maximum number of file descriptors that a single epoll_wait
+   will return.  This is *not* the max of pollable FDs. */
+#define IRIS_EPOLL_MAXFD       64
+
 #define IRIS_PDU_HOST_LEN      64
 #define IRIS_PDU_SERVICE_LEN  128
 #define IRIS_PDU_OUTPUT_LEN  4096
@@ -54,6 +58,9 @@ struct pdu {
 	char     service[IRIS_PDU_SERVICE_LEN];
 	char     output[IRIS_PDU_OUTPUT_LEN];
 };
+
+typedef void (*evhandler)(struct pdu*);
+typedef int (*fdhandler)(int,evhandler);
 
 void log_info(const char *fmt, ...);
 #ifdef DEBUG
@@ -80,5 +87,8 @@ int net_accept(int sockfd, int epfd);
 int net_connect(const char *host, unsigned short port);
 int fd_sink(int fd);
 int read_packets(FILE *io, struct pdu **packets, const char *delim);
+
+void mainloop(int sockfd, int epfd, fdhandler fn, evhandler evfn);
+int recv_data(int fd, evhandler fn);
 
 #endif

@@ -62,12 +62,13 @@ int main(int argc, char **argv)
 	int fd;
 	struct pdu pdu;
 	size_t n, len;
+	time_t now;
 
 	strcpy(pdu.host,    "host");
 	strcpy(pdu.service, "service");
 	strcpy(pdu.output,  "output");
 	pdu.rc = 0;
-	time((time_t*)&pdu.ts);
+	time(&now); pdu.ts = (uint32_t)now;
 	ok(pdu_pack(&pdu) == 0, "packed PDU");
 
 

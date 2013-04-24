@@ -14,9 +14,6 @@
 #include "common.h"
 #include "icinga.h"
 
-/* Maximum number of file descriptors that a single epoll_wait
-   will return.  This is *not* the max of pollable FDs. */
-#define IRIS_MAXFD 64
 
 NEB_API_VERSION(CURRENT_NEB_API_VERSION);
 
@@ -27,79 +24,39 @@ pthread_t tid;
 
 /*************************************************************/
 
-static int iris_recv_data(int fd)
+static void iris_submit_result(struct pdu *pdu)
 {
-	int rc;
-	struct pdu pdu;
-	size_t len;
+	check_result *res = malloc(sizeof(check_result));
+	init_check_result(res);
 
-	log_debug("IRIS DEBUG: reading from fd %d", fd);
-	for (;;) {
-		memset(&pdu, 0, len = sizeof(pdu));
-		rc = pdu_read(fd, (char*)&pdu, &len);
-		log_debug("IRIS DEBUG: pdu_read(%d) returned %d, read %d bytes", fd, rc, len);
+	res->output_file    = NULL;
+	res->output_file_fd = -1;
 
-		if (rc < 0) {
-			if (errno == EAGAIN) break;
-			log_info("IRIS: failed to read from fd %d: %s", fd, strerror(errno));
-			return -1;
-		}
-
-		if (len == 0) {
-			log_info("IRIS: read 0 bytes from fd %d", fd);
-			return -1;
-		}
-
-		if (pdu_unpack(&pdu) != 0) {
-			// FIXME: stop using fds, start using client IP
-			log_info("IRIS: discarding bogus packet from fd %d", fd);
-			return -1;
-		}
-
-		log_info("IRIS: SERVICE RESULT v%d [%d] %s/%s (rc:%d) '%s'",
-			pdu.version, (uint32_t)pdu.ts, pdu.host, pdu.service, pdu.rc, pdu.output);
-
-		check_result *res = malloc(sizeof(check_result));
-		init_check_result(res);
-
-		res->output_file    = NULL;
-		res->output_file_fd = -1;
-
-		res->host_name = strdup(pdu.host);
-		if (strcmp(pdu.service, "HOST") != 0) {
-			res->service_description = strdup(pdu.service);
-			res->object_check_type = SERVICE_CHECK;
-		}
-
-		res->output = strdup(pdu.output);
-
-		res->return_code = pdu.rc;
-		res->exited_ok = 1;
-		res->check_type = SERVICE_CHECK_PASSIVE;
-
-		res->start_time.tv_sec = pdu.ts;
-		res->start_time.tv_usec = 0;
-		res->finish_time = res->start_time;
-
-		add_check_result_to_list(res);
-		// Icinga is now responsible for malloc'd _res_ memory
-
-		log_debug("IRIS DEBUG: submitted result to main process");
-
-		if (rc == 0) {
-			log_debug("IRIS DEBUG: reached EOF on fd %d", fd);
-			return -1;
-		}
+	res->host_name = strdup(pdu->host);
+	if (strcmp(pdu->service, "HOST") != 0) {
+		res->service_description = strdup(pdu->service);
+		res->object_check_type = SERVICE_CHECK;
 	}
-	return 0;
+
+	res->output = strdup(pdu->output);
+
+	res->return_code = pdu->rc;
+	res->exited_ok = 1;
+	res->check_type = SERVICE_CHECK_PASSIVE;
+
+	res->start_time.tv_sec = pdu->ts;
+	res->start_time.tv_usec = 0;
+	res->finish_time = res->start_time;
+
+	add_check_result_to_list(res);
+	// Icinga is now responsible for malloc'd _res_ memory
+
+	log_debug("IRIS DEBUG: submitted result to main process");
 }
 
 static void* iris_daemon(void *udata)
 {
-	int i, n;
 	int sockfd, epfd;
-	struct epoll_event events[IRIS_MAXFD];
-
 	log_info("IRIS: starting up the iris daemon on *:%d", IRIS_DEFAULT_PORT);
 
 	// bind and listen on our port, all interfaces
@@ -113,46 +70,9 @@ static void* iris_daemon(void *udata)
 	}
 
 	// and loop
-	for (;;) {
-		n = epoll_wait(epfd, events, sizeof(events), -1);
-		log_debug("IRIS DEBUG: epoll gave us %d fds to work with", n);
+	mainloop(sockfd, epfd, recv_data, iris_submit_result);
 
-		for (i = 0; i < n; i++) {
-#ifdef DEBUG
-			log_debug("IRIS DEBUG: activity on %d: %04x =%s%s%s%s",
-					events[i].data.fd, events[i].events,
-					(events[i].events & EPOLLERR   ? " EPOLLERR"   : ""),
-					(events[i].events & EPOLLHUP   ? " EPOLLHUP"   : ""),
-					(events[i].events & EPOLLRDHUP ? " EPOLLRDHUP" : ""),
-					(events[i].events & EPOLLIN    ? " EPOLLIN"    : ""));
-#endif
-
-			// ERROR event
-			if ((events[i].events & EPOLLERR)   || // error on fd
-			    (events[i].events & EPOLLHUP)   || // force closure (thanks, kernel)
-			    (events[i].events & EPOLLRDHUP) || // client shutdown(x, SHUT_WR)
-			    !(events[i].events & EPOLLIN)) {   // not really readable (???)
-
-				log_debug("IRIS DEBUG: closing fd %d", fd);
-				close(events[i].data.fd);
-				continue;
-			}
-
-			// CONNECT event
-			if (events[i].data.fd == sockfd) {
-				log_debug("IRIS DEBUG: processing inbound connections", sockfd);
-				while (net_accept(sockfd, epfd) >= 0)
-					;
-
-			} else if (events[i].events & EPOLLIN) {
-				if (iris_recv_data(events[i].data.fd) != 0) {
-					log_debug("IRIS DEBUG: closing fd %d", events[i].data.fd);
-					close(events[i].data.fd);
-				}
-			}
-		}
-	}
-
+	// cleanup
 	close(sockfd);
 	close(epfd);
 	return NULL;

@@ -4,7 +4,7 @@
 int main(int argc, char **argv)
 {
 	plan_no_plan();
-	freopen("/dev/null", ">", stderr);
+	freopen("/dev/null", "w", stderr);
 
 	struct pdu pdu, copy;
 	time_t now;

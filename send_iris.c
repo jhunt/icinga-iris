@@ -85,6 +85,7 @@ int main(int argc, char **argv)
 	int npackets = 0, nsent = 0;
 	int sock, i;
 	size_t len;
+	time_t now;
 
 	if (process_args(argc, argv) != 0)
 		exit(3);
@@ -100,7 +101,7 @@ int main(int argc, char **argv)
 	}
 
 	for (i = 0; i < npackets; i++) {
-		time((time_t*)&packets[i].ts);
+		time(&now); packets[i].ts = (uint32_t)now;
 		pdu_pack(&packets[i]);
 
 		len = sizeof(struct pdu);

@@ -65,4 +65,5 @@ t/15-bind.t: t/15-bind.t.o iris.o
 t/20-cli.t: t/20-cli.t.o iris.o
 t/45-net-server.t: t/45-net-server.t.o iris.o
 t/45-net-client.t: t/45-net-client.t.o iris.o
+t/46-recv.t: t/46-recv.t.o iris.o
 t/70-stressmem.t: t/70-stressmem.t.o iris.o

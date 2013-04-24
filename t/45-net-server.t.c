@@ -6,19 +6,23 @@
 
 int child_main(int rc)
 {
-	int fd = net_connect(NET_HOST, atoi(NET_PORT));
+	struct pdu pdu;
+	time_t now;
+	size_t n, len;
+	int fd;
+
+	fd = net_connect(NET_HOST, atoi(NET_PORT));
 	if (fd < 0) return 1;
 
-	struct pdu pdu;
 	strcpy(pdu.host,    "host");
 	strcpy(pdu.service, "service");
 	strcpy(pdu.output,  "output");
 	pdu.rc = rc;
-	time((time_t*)&pdu.ts);
+	time(&now); pdu.ts = (uint32_t)now;
 	if (pdu_pack(&pdu) != 0) return 2;
 
-	size_t len = sizeof(pdu);
-	size_t n = pdu_send(fd, &pdu, &len);
+	len = sizeof(pdu);
+	n = pdu_send(fd, &pdu, &len);
 	if (len < sizeof(pdu)) return 3;
 	shutdown(fd, SHUT_WR);
 	close(fd);
@@ -33,7 +37,7 @@ int main(int argc, char **argv)
 	struct epoll_event events[8];
 
 	ok(net_poller(-1) < 0, "net_poller startup fails with bad sockfd");
-	freopen("/dev/null", ">", stderr);
+	freopen("/dev/null", "w", stderr);
 
 	sockfd = net_bind(NET_HOST, NET_PORT);
 	if (sockfd < 0) {

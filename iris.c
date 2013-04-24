@@ -76,29 +76,27 @@ int nonblocking(int fd)
 	return 0;
 }
 
-int pdu_read(int fd, char *buf, size_t *len)
+size_t pdu_read(int fd, char *buf)
 {
-	ssize_t n;
+	size_t n, len = 4300;
 	char *off = buf;
 
 	errno = 0;
-	while ((n = read(fd, off, *len)) > 0) {
-		 off += n; *len -= n;
+	while ((n = read(fd, off, len)) > 0) {
+		 off += n; len -= n;
 	}
-	*len = off - buf;
-	return n < 0 ? n : *len;
+	return n < 0 ? n : off - buf;
 }
 
-int pdu_send(int fd, const char *buf, size_t *len)
+size_t pdu_write(int fd, const char *buf)
 {
-	ssize_t n;
+	size_t n, len = 4300;
 	const char *off = buf;
 
-	while ((n = write(fd, off, *len)) > 0) {
-		 off += n; *len -= n;
+	while ((n = write(fd, off, len)) > 0) {
+		 off += n; len -= n;
 	}
-	*len = off - buf;
-	return n < 0 ? n : 0;
+	return n < 0 ? n : off - buf;
 }
 
 int pdu_pack(struct pdu *pdu)
@@ -383,18 +381,16 @@ void mainloop(int sockfd, int epfd, fdhandler fn, evhandler evfn)
 
 int recv_data(int fd, evhandler handler)
 {
-	int rc, eof;
 	struct pdu pdu;
 	size_t len;
 
 	log_debug("IRIS DEBUG: reading from fd %d", fd);
 	for (;;) {
-		memset(&pdu, 0, len = sizeof(pdu));
-		rc = pdu_read(fd, (char*)&pdu, &len);
-		log_debug("IRIS DEBUG: pdu_read(%d) returned %d, read %d bytes", fd, rc, len);
+		memset(&pdu, 0, sizeof(pdu));
+		len = pdu_read(fd, (char*)&pdu);
 
-		if (rc <= 0) {
-			if (rc == 0 || errno == EAGAIN) return 0;
+		if (len <= 0) {
+			if (len == 0 || errno == EAGAIN) return 0;
 			log_info("IRIS: failed to read from fd %d: %s", fd, strerror(errno));
 			return -1;
 		}

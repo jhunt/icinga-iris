@@ -74,8 +74,8 @@ void init_crc32(void);
 unsigned long crc32(char *buf, int len);
 int nonblocking(int fd);
 
-int pdu_read(int fd, char *buf, size_t *len);
-int pdu_send(int fd, const char *buf, size_t *len);
+size_t pdu_read(int fd, char *buf);
+size_t pdu_write(int fd, const char *buf);
 
 int pdu_pack(struct pdu *pdu);
 int pdu_unpack(struct pdu *pdu);

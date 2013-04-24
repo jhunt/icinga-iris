@@ -61,7 +61,7 @@ int main(int argc, char **argv)
 
 	int fd;
 	struct pdu pdu;
-	size_t n, len;
+	size_t len;
 	time_t now;
 
 	strcpy(pdu.host,    "host");
@@ -75,10 +75,8 @@ int main(int argc, char **argv)
 	fd = net_connect(NET_HOST, atoi(NET_PORT));
 	ok(fd >= 0, "connected to %s:%s", NET_HOST, NET_PORT);
 
-	len = sizeof(pdu);
-	n = pdu_send(fd, &pdu, &len);
+	len = pdu_write(fd, &pdu);
 	ok(len == sizeof(pdu), "sent PDU %d/%d bytes to the server", len, sizeof(pdu));
-	ok(n == 0, "pdu_send returned 0");
 	shutdown(fd, SHUT_WR);
 	close(fd);
 
@@ -86,10 +84,8 @@ int main(int argc, char **argv)
 	fd = net_connect(NET_HOST_DNS, atoi(NET_PORT));
 	ok(fd >= 0, "connected to %s:%s", NET_HOST_DNS, NET_PORT);
 
-	len = sizeof(pdu);
-	n = pdu_send(fd, &pdu, &len);
+	len = pdu_write(fd, &pdu);
 	ok(len == sizeof(pdu), "sent PDU %d/%d bytes to the server", len, sizeof(pdu));
-	ok(n == 0, "pdu_send returned 0");
 	shutdown(fd, SHUT_WR);
 	close(fd);
 

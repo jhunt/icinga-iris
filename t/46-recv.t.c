@@ -23,8 +23,7 @@ int child_main(int fd)
 		time(&now); pdu.ts = (uint32_t)now;
 		if (pdu_pack(&pdu) != 0) return 2;
 
-		len = sizeof(pdu);
-		n = pdu_send(fd, (char*)&pdu, &len);
+		len = pdu_write(fd, (char*)&pdu);
 		if (len < sizeof(pdu)) return 3;
 
 		pdu.host[0]++;

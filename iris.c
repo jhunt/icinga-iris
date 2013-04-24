@@ -101,12 +101,12 @@ size_t pdu_write(int fd, const char *buf)
 
 int pdu_pack(struct pdu *pdu)
 {
-	pdu->version = htons(IRIS_PROTOCOL_VERSION);
-	pdu->ts      = htonl((uint32_t)pdu->ts);
-	pdu->rc      = htons(pdu->rc);
+	pdu->version = htons(IRIS_PROTOCOL_VERSION); // LCOV_EXCL_LINE
+	pdu->ts      = htonl((uint32_t)pdu->ts);     // LCOV_EXCL_LINE
+	pdu->rc      = htons(pdu->rc);               // LCOV_EXCL_LINE
 
 	pdu->crc32   = 0x0000;
-	pdu->crc32   = htonl(crc32((char*)pdu, sizeof(struct pdu)));
+	pdu->crc32   = htonl(crc32((char*)pdu, sizeof(struct pdu))); // LCOV_EXCL_LINE
 	return 0;
 }
 
@@ -117,7 +117,7 @@ int pdu_unpack(struct pdu *pdu)
 	time_t now;
 
 	// check the CRC32
-	their_crc = ntohl(pdu->crc32);
+	their_crc = ntohl(pdu->crc32); // LCOV_EXCL_LINE
 	pdu->crc32 = 0L;
 	our_crc = crc32((char*)pdu, sizeof(struct pdu));
 	if (our_crc != their_crc) {
@@ -126,9 +126,9 @@ int pdu_unpack(struct pdu *pdu)
 		return -1;
 	}
 
-	pdu->version = ntohs(pdu->version);
-	pdu->rc      = ntohs(pdu->rc);
-	pdu->ts      = ntohl(pdu->ts);
+	pdu->version = ntohs(pdu->version); // LCOV_EXCL_LINE
+	pdu->rc      = ntohs(pdu->rc);      // LCOV_EXCL_LINE
+	pdu->ts      = ntohl(pdu->ts);      // LCOV_EXCL_LINE
 
 	if (pdu->version != IRIS_PROTOCOL_VERSION) {
 		log_info("IRIS: incorrect PDU version (got %d, wanted %d)", pdu->version, IRIS_PROTOCOL_VERSION);
@@ -259,7 +259,7 @@ int net_connect(const char *host, unsigned short port)
 
 	memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
-	addr.sin_port   = htons(port);
+	addr.sin_port   = htons(port); // LCOV_EXCL_LINE
 
 	if (!inet_aton(host, &addr.sin_addr)) {
 		struct hostent *he;

@@ -43,7 +43,6 @@ int main(int argc, char **argv)
 	lim.rlim_cur = 128*1024;
 	lim.rlim_max = 256*1024;
 
-	char *data = malloc(2048);
 	if (setrlimit(RLIMIT_AS, &lim) != 0) {
 		fail("setrlimit failed: %s", strerror(errno));
 		return exit_status();

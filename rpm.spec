@@ -20,6 +20,8 @@ processing queues.
 
 This package provides the broker module that runs on the Icinga server.
 
+%debug_package
+
 %package send
 Group: Application/System
 Summary: Provides the send_nsca utility for submitting check results.

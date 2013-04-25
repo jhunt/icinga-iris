@@ -1,0 +1,11 @@
+#!/bin/bash
+
+LIM=${1:-100}
+N=${2:-4}
+
+for X in $(seq 1 $LIM); do
+	echo "host$X	cpu	0	CPU looks okay..."
+	[[ $N > 1 ]] && echo "host$X	mem	0	Memory looks okay..."
+	[[ $N > 2 ]] && echo "host$X	load	0	System Load looks okay..."
+	[[ $N > 3 ]] && echo "host$X	disk	0	Disk Usage looks okay..."
+done

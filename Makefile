@@ -73,7 +73,9 @@ t/03-pdu.t: t/03-pdu.t.o iris.o
 t/10-read.t: t/10-read.t.o iris.o
 t/15-bind.t: t/15-bind.t.o iris.o
 t/20-cli.t: t/20-cli.t.o iris.o
+t/30-client.t: t/30-client.t.c iris.o
 t/45-net-server.t: t/45-net-server.t.o iris.o
 t/45-net-client.t: t/45-net-client.t.o iris.o
 t/46-recv.t: t/46-recv.t.o iris.o
+t/50-segv.t: t/50-segv.t.c iris.o
 t/70-stressmem.t: t/70-stressmem.t.o iris.o

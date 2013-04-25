@@ -32,7 +32,7 @@ int child_main(int rc)
 	time(&now); pdu.ts = (uint32_t)now;
 	if (pdu_pack(&pdu) != 0) return 2;
 
-	if (pdu_write(fd, (char*)&pdu) < sizeof(pdu)) return 3;
+	if (pdu_write(fd, (uint8_t*)&pdu) < sizeof(pdu)) return 3;
 	shutdown(fd, SHUT_WR);
 	close(fd);
 	return 0;

@@ -1,7 +1,7 @@
 #include "iris.h"
 
-#define MAX_CLIENT_REGISTRY 8192
-struct client CLIENTS[MAX_CLIENT_REGISTRY];
+struct client *CLIENTS = NULL;
+unsigned int NUM_CLIENTS = 0;
 
 extern void iris_call_submit_result(struct pdu *pdu);
 extern int iris_call_recv_data(int fd);
@@ -35,12 +35,15 @@ static void crc32_init(void)
 	}
 }
 
-unsigned long crc32(char *buf, int len)
+unsigned long crc32(void *ptr, int len)
 {
 	register unsigned long crc;
 	int c, i;
+	uint8_t *buf = (uint8_t*)ptr;
 
-	crc32_init();
+	crc32_init(); // FIXME: unroll this?
+	if (!buf) return 0;
+
 	crc = 0xFFFFFFFF;
 	for (i = 0; i < len; i++) {
 		c = (uint8_t)buf[i];
@@ -61,22 +64,38 @@ int nonblocking(int fd)
 	return 0;
 }
 
-ssize_t pdu_read(int fd, char *buf)
+ssize_t pdu_read(int fd, uint8_t *buf, size_t start)
 {
-	ssize_t n, len = 4300;
-	char *off = buf;
+	ssize_t n = 0, len = 4300 - start, offset = 0;
+	uint8_t *ptr = buf+start;
+
+	if (!buf) {
+		vlog(LOG_INFO, "pdu_read: received a NULL buffer...");
+		errno = EINVAL;
+		return -1;
+	}
+
+	if (start != 0) {
+		vlog(LOG_INFO, "pdu_read: starting at byte offset %d for read of %d bytes from %s fd %d",
+				start, len, client_addr(fd), fd);
+	}
 
 	errno = 0;
-	while ((n = read(fd, off, len)) > 0) {
-		 off += n; len -= n;
+	while (len > 0 && (n = read(fd, ptr+offset, len)) > 0) {
+		 offset += n; len -= n;
 	}
-	return n < 0 ? n : off - buf;
+	if (n < 0) {
+		if (errno == EAGAIN || errno == EWOULDBLOCK)
+			return offset;
+		return n;
+	}
+	return offset;
 }
 
-ssize_t pdu_write(int fd, const char *buf)
+ssize_t pdu_write(int fd, const uint8_t *buf)
 {
 	ssize_t n, len = 4300;
-	const char *off = buf;
+	const uint8_t *off = buf;
 
 	errno = 0;
 	while ((n = write(fd, off, len)) > 0) {
@@ -85,19 +104,49 @@ ssize_t pdu_write(int fd, const char *buf)
 	return n < 0 ? n : off - buf;
 }
 
+void pdu_dump(const struct pdu *pdu)
+{
+	if (!pdu) return;
+
+	int pfd[2];
+	if (pipe(pfd) != 0) {
+		fprintf(stderr, "Failed to dump PDU via `/usr/bin/od -a': %s",
+				strerror(errno));
+		return;
+	}
+
+	if (fork() == 0) {
+		close(pfd[0]);
+		dup2(pfd[1], 0);
+		//dup2(2,1); // 1>&2
+
+		execl("/usr/bin/od", "-a", NULL);
+		fprintf(stderr, "Failed to dump PDU via `/usr/bin/od -a': %s",
+				strerror(errno));
+		exit(42);
+	}
+	close(pfd[1]);
+	write(pfd[0], pdu, sizeof(struct pdu));
+	close(pfd[0]);
+}
+
 int pdu_pack(struct pdu *pdu)
 {
+	if (!pdu) return -1;
+
 	pdu->version = htons(IRIS_PROTOCOL_VERSION); // LCOV_EXCL_LINE
 	pdu->ts      = htonl((uint32_t)pdu->ts);     // LCOV_EXCL_LINE
 	pdu->rc      = htons(pdu->rc);               // LCOV_EXCL_LINE
 
 	pdu->crc32   = 0x0000;
-	pdu->crc32   = htonl(crc32((char*)pdu, sizeof(struct pdu))); // LCOV_EXCL_LINE
+	pdu->crc32   = htonl(crc32((uint8_t*)pdu, sizeof(struct pdu))); // LCOV_EXCL_LINE
 	return 0;
 }
 
 int pdu_unpack(struct pdu *pdu)
 {
+	if (!pdu) return -1;
+
 	uint32_t our_crc, their_crc;
 	long age;
 	time_t now;
@@ -105,11 +154,12 @@ int pdu_unpack(struct pdu *pdu)
 	// check the CRC32
 	their_crc = ntohl(pdu->crc32); // LCOV_EXCL_LINE
 	pdu->crc32 = 0L;
-	our_crc = crc32((char*)pdu, sizeof(struct pdu));
+	our_crc = crc32((uint8_t*)pdu, sizeof(struct pdu));
 	// put the CRC32 back...
 	pdu->crc32 = their_crc;
 	if (our_crc != their_crc) {
 		vlog(LOG_INFO, "IRIS: CRC mismatch (calculated %x != %x)", our_crc, their_crc);
+		vdump(pdu);
 		return -1;
 	}
 
@@ -168,14 +218,12 @@ int net_bind(const char *host, const char *port)
 			break;
 		}
 
-		client_set(fd, NULL);
 		close(fd);
 	} while ((res = res->ai_next) != NULL);
 
 	freeaddrinfo(head);
 
 	if (nonblocking(fd) != 0 || listen(fd, SOMAXCONN) < 0) {
-		client_set(fd, NULL);
 		close(fd);
 		return -1;
 	}
@@ -201,7 +249,7 @@ int net_accept(int sockfd, int epfd)
 	struct sockaddr_in in_addr;
 	socklen_t in_len = sizeof(in_addr);
 	struct epoll_event ev;
-	const char *addr;
+	struct client *client;
 	int connfd;
 
 	vdebug("IRIS: accepting inbound connection");
@@ -232,8 +280,8 @@ int net_accept(int sockfd, int epfd)
 		return -1;
 	}
 
-	if ((addr = client_set(connfd, &(in_addr.sin_addr))) != NULL) {
-		vdebug("IRIS: accepted inbound connection from %s", addr, connfd);
+	if ((client = client_new(connfd, &(in_addr.sin_addr))) != NULL) {
+		vlog(LOG_INFO, "IRIS: accepted inbound connection from %s, fd %d", client->addr, connfd);
 	}
 	return connfd;
 }
@@ -272,6 +320,8 @@ int fd_sink(int fd)
 #define IRIS_CLI_MAX_LINE 5*1024
 int read_packets(FILE *io, struct pdu **result, const char *delim)
 {
+	if (!result) return -1;
+
 	struct pdu *pdu, *list = NULL;
 	int i, n = 0;
 	char buf[IRIS_CLI_MAX_LINE], *str, c;
@@ -345,9 +395,7 @@ void mainloop(int sockfd, int epfd)
 			    (events[i].events & EPOLLRDHUP) || // client shutdown(x, SHUT_WR)
 			    !(events[i].events & EPOLLIN)) {   // not really readable (???)
 
-				vdebug("IRIS: closing connection from %s, fd %d",
-					client_get(events[i].data.fd), events[i].data.fd);
-				close(events[i].data.fd);
+				client_close(events[i].data.fd);
 				continue;
 			}
 
@@ -356,29 +404,12 @@ void mainloop(int sockfd, int epfd)
 				vdebug("IRIS: processing inbound connections", sockfd);
 				while (net_accept(sockfd, epfd) >= 0)
 					;
-				/*
-				int fd;
-				while ((fd = net_accept(sockfd, epfd)) >= 0) {
-					write(fd, "IRIS\1\0", 6);
-				}
-				*/
 
 			} else if (events[i].events & EPOLLIN) {
 				vdebug("IRIS: processing readable filehandle");
-				switch (iris_call_recv_data(events[i].data.fd)) {
-					case 0:
-						break;
-
-					case -2:
-						vdebug("IRIS: mainloop terminating on request");
-						return;
-
-					case -1:
-					default:
-						vdebug("IRIS: closing connection from %s, fd %d",
-							client_get(events[i].data.fd), events[i].data.fd);
-
-						close(events[i].data.fd);
+				if (iris_call_recv_data(events[i].data.fd) != 0) {
+					vlog(LOG_PROC, "IRIS: event loop terminating (recv_data signalled an error)");
+					return;
 				}
 			}
 		}
@@ -387,69 +418,125 @@ void mainloop(int sockfd, int epfd)
 
 int recv_data(int fd)
 {
-	struct pdu pdu;
+	struct client *c;
 	ssize_t len;
 
-	vdebug("IRIS: reading from %s, fd %d", client_get(fd), fd);
+	c = client_find(fd);
+	if (!c) {
+		vlog(LOG_WARN, "IRIS: could not find a client session for fd %d", fd);
+		return 0;
+	}
+
+	vdebug("IRIS: reading from %s, fd %d", c->addr, fd);
 	for (;;) {
-		vdebug("Reading from fd %d", fd);
-		memset(&pdu, 0, sizeof(pdu));
-		len = pdu_read(fd, (char*)&pdu);
-		vdebug("IRIS: read %d bytes from fd %d", len, fd);
+		vdebug("IRIS >> fd(%d): have %d bytes, want %d total for %s",
+				fd, c->offset, sizeof(c->pdu), c->addr);
 
+		len = pdu_read(fd, (uint8_t*)(&c->pdu), c->offset);
 		if (len <= 0) {
-			if (errno == EAGAIN) {
-				vdebug("IRIS: got EAGAIN from fd %d", fd);
-				return 0;
-			} else if (len == 0) {
-				vdebug("IRIS: reached EOF on fd %d", fd);
-			} else {
+			if (errno == EAGAIN) return 0;
+			if (len == 0)
+				vlog(LOG_INFO, "IRIS: EOF from %s, fd %d", c->addr, fd);
+			else
 				vlog(LOG_INFO, "IRIS: failed to read from %s: %s",
-						client_get(fd), strerror(errno));
-			}
-			return -1;
+						c->addr, strerror(errno));
+
+			client_close(fd);
+			break;
 		}
 
-		if (pdu_unpack(&pdu) != 0) {
-			vlog(LOG_WARN, "IRIS: discarding bogus packet from %s", client_get(fd));
-			return -1;
+		c->offset += len;
+		vlog(LOG_INFO, "IRIS >> fd(%d): read %d (for %d total)i from %s",
+				fd, len, c->offset, c->addr);
+
+		if (c->offset < sizeof(c->pdu)) {
+			vlog(LOG_INFO, "IRIS: Read a partial PDU (%d/%d bytes) from %s, fd %d",
+					c->offset, sizeof(c->pdu), c->addr, fd);
+			continue;
 		}
 
-		vlog(LOG_RESULT, "IRIS: SERVICE RESULT %04x v%d [%d] %s/%s (rc:%d) '%s'",
-				pdu.crc32, pdu.version, (uint32_t)pdu.ts,
-				pdu.host, pdu.service, pdu.rc, pdu.output);
+		c->offset = 0;
+		if (pdu_unpack(&c->pdu) != 0) {
+			vlog(LOG_WARN, "IRIS: discarding bogus packet from %s, fd %d", c->addr, fd);
+			uint8_t *byte = ((uint8_t*)(&c->pdu));
+			int off = 0;
+			for (off = 0; off < sizeof(c->pdu) && *(byte+off) == '\0'; off++)
+				;
+			vlog(LOG_INFO, "IRIS: first non-null byte in %s recv buffer is at position %d\n", c->addr, off);
+			memset(&c->pdu, 0, sizeof(c->pdu));
+			continue;
+		}
 
-		iris_call_submit_result(&pdu);
+		vlog(LOG_RESULT, "IRIS: SERVICE RESULT %08x v%d [%d] %s/%s (rc:%d) '%s'",
+				c->pdu.crc32, c->pdu.version, (uint32_t)c->pdu.ts,
+				c->pdu.host, c->pdu.service, c->pdu.rc, c->pdu.output);
+
+		iris_call_submit_result(&c->pdu);
+		memset(&c->pdu, 0, sizeof(c->pdu));
 	}
 	return 0;
 }
 
-const char *client_get(int fd)
+int client_init(int n)
+{
+	CLIENTS = calloc(n, sizeof(struct client));
+	if (!CLIENTS) {
+		vdebug("IRIS: client_init() malloc(%d * client) failed: %s", n, strerror(errno));
+		return -1;
+	}
+	NUM_CLIENTS = n;
+	for (n = 0; n < NUM_CLIENTS; n++) {
+		CLIENTS[n].fd = -1;
+	}
+	return NUM_CLIENTS;
+}
+
+struct client* client_find(int fd)
 {
 	int i;
-	for (i = 0; i < MAX_CLIENT_REGISTRY; i++) {
-		if (CLIENTS[i].fd == fd) return CLIENTS[i].addr;
+	for (i = 0; i < NUM_CLIENTS; i++) {
+		if (CLIENTS[i].fd == fd)
+			return &CLIENTS[i];
 	}
 	return NULL;
 }
 
-const char *client_set(int fd, const void *ip)
+struct client* client_new(int fd, void *ip)
 {
-	int i;
-	if (ip) {
-		for (i = 0; i < MAX_CLIENT_REGISTRY; i++) {
-			if (CLIENTS[i].fd < 0) continue;
-			CLIENTS[i].fd = fd;
-			inet_ntop(AF_INET, ip, CLIENTS[i].addr, sizeof(CLIENTS[i].addr));
-			return CLIENTS[i].addr;
-		}
-	} else {
-		for (i = 0; i < MAX_CLIENT_REGISTRY; i++) {
-			if (CLIENTS[i].fd != fd) continue;
-			CLIENTS[i].fd = -1;
-			CLIENTS[i].addr[0] = '\0';
-			return NULL;
-		}
+	struct client *c = client_find(-1);
+	if (!c) {
+		vdebug("IRIS: client_new() failed to find a free slot.  Perhaps you need to adjust max_clients");
+		return NULL;
 	}
+
+	if (ip)
+		inet_ntop(AF_INET, ip, c->addr, sizeof(c->addr));
+	else
+		strcpy(c->addr, "<unknown-peer>");
+
+	c->fd = fd;
+	c->offset = 0;
+	memset(&c->pdu, 0, sizeof(struct pdu));
+
+	vlog(LOG_INFO, "IRIS: client %d {fd: '%d', offset: '%d', addr: '%s', pdu: <ignored>'}",
+			fd, c->fd, c->offset, c->addr);
+
+	return c;
+}
+
+void client_close(int fd)
+{
+	struct client *c = client_find(fd);
+	if (c) {
+		vdebug("IRIS: closing connection from %s, fd %d", c->addr, fd);
+		c->fd = -1;
+		close(fd);
+	}
+}
+
+const char *client_addr(int fd)
+{
+	struct client *c = client_find(fd);
+	if (c) return c->addr;
 	return NULL;
 }

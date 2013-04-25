@@ -117,7 +117,7 @@ int main(int argc, char **argv)
 		time(&now); packets[i].ts = (uint32_t)now;
 		pdu_pack(&packets[i]);
 
-		if (pdu_write(sock, (char*)&packets[i]) < 0) {
+		if (pdu_write(sock, (uint8_t*)&packets[i]) < 0) {
 			fprintf(stderr, "error sending data to %s:%d\n", OPTS.host, OPTS.port);
 			close(sock);
 			alarm(0); exit(3);

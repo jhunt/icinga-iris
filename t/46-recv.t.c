@@ -34,7 +34,7 @@ int child_main(int fd)
 		time(&now); pdu.ts = (uint32_t)now;
 		if (pdu_pack(&pdu) != 0) return 2;
 
-		len = pdu_write(fd, (char*)&pdu);
+		len = pdu_write(fd, (uint8_t*)&pdu);
 		if (len < sizeof(pdu)) return 3;
 
 		pdu.host[0]++;
@@ -44,61 +44,66 @@ int child_main(int fd)
 	return 0;
 }
 
+extern struct client *CLIENTS;
+
+#define SETUP(fd,n) do { \
+	ok(pipe(fd) == 0, "got a bi-directional pipe"); \
+	ok(nonblocking((fd)[0]) == 0, "set O_NONBLOCK on read end of pipe"); \
+	num_packets = 0; \
+	expect_packets = (n); \
+} while (0)
+
+#define RECEIVE(pfd) do { \
+	close((pfd)[1]); \
+	client_new((pfd)[0], NULL); \
+	\
+	struct client *c; \
+	c = client_find((pfd)[0]); \
+	ok(c, "Found client struct for fd %d @%p", (pfd)[0], c); \
+	\
+	while (c->fd != -1) \
+		recv_data((pfd)[0]); \
+	ok(num_packets == expect_packets, "received %d packets (expected %d)", \
+			num_packets, expect_packets); \
+	client_close((pfd)[0]); \
+	c = client_find((pfd)[0]); \
+	ok(!c, "Removed client struct for fd %d (== %p)", (pfd)[0], c); \
+} while (0)
+
 int main(int argc, char **argv)
 {
 	int pipefd[2];
+	client_init(8);
 
 	plan_no_plan();
-	freopen("/dev/null", "w", stderr);
 	vdebug("%s: starting", __FILE__);
 
-	ok(pipe(pipefd) == 0, "got a bi-directional pipe");
-	ok(nonblocking(pipefd[0]) == 0, "set O_NONBLOCK on read end of pipe");
-	num_packets = 0;
-	expect_packets = 1;
+	SETUP(pipefd, 1);
 	if (fork() == 0) {
 		close(pipefd[0]);
 		_exit(child_main(pipefd[1]));
 	}
-	close(pipefd[1]);
-	recv_data(pipefd[0]);
-	ok(num_packets == expect_packets, "received all %d packets (expected %d)",
-			num_packets, expect_packets);
-	close(pipefd[0]);
+	RECEIVE(pipefd);
 
 
-	ok(pipe(pipefd) == 0, "got a bi-directional pipe");
-	ok(nonblocking(pipefd[0]) == 0, "set O_NONBLOCK on read end of pipe");
-	num_packets = 0;
-	expect_packets = 6;
+	SETUP(pipefd, 1);
 	if (fork() == 0) {
 		close(pipefd[0]);
 		_exit(child_main(pipefd[1]));
 	}
-	close(pipefd[1]);
-	recv_data(pipefd[0]);
-	ok(num_packets == expect_packets, "received all %d packets (expected %d)",
-			num_packets, expect_packets);
-	close(pipefd[0]);
+	RECEIVE(pipefd);
 
 
 	// now, test the edge cases
 
 	// what if the client connects and then closes?
-	ok(pipe(pipefd) == 0, "got a bi-directional pipe");
-	ok(nonblocking(pipefd[0]) == 0, "set O_NONBLOCK on read end of pipe");
-	num_packets = 0;
-	expect_packets = 0;
+	SETUP(pipefd, 0);
 	if (fork() == 0) {
 		close(pipefd[0]);
 		close(pipefd[1]); // don't even send anything
 		_exit(6);
 	}
-	close(pipefd[1]);
-	recv_data(pipefd[0]);
-	ok(num_packets == expect_packets, "received all %d packets (expected %d)",
-			num_packets, expect_packets);
-	close(pipefd[0]);
+	RECEIVE(pipefd);
 
 
 	// what if the client wants to read an IV packet (under a timeout)?
@@ -116,6 +121,7 @@ int main(int argc, char **argv)
 	}
 	close(pipefd[1]);
 	ok(nonblocking(pipefd[0]) == 0, "set O_NONBLOCK on read end of pipe");
+	client_new(pipefd[0], NULL);
 	recv_data(pipefd[0]);
 	ok(num_packets == expect_packets, "received all %d packets (expected %d)",
 			num_packets, expect_packets);
@@ -123,20 +129,13 @@ int main(int argc, char **argv)
 
 
 	// what if the client writes less than one packet?
-	ok(pipe(pipefd) == 0, "got a bi-directional pipe");
-	ok(nonblocking(pipefd[0]) == 0, "set O_NONBLOCK on read end of pipe");
-	num_packets = 0;
-	expect_packets = 0;
+	SETUP(pipefd, 0);
 	if (fork() == 0) {
 		close(pipefd[0]);
 		write(pipefd[1], "OH HAI!", 7);
 		_exit(3);
 	}
-	close(pipefd[1]);
-	recv_data(pipefd[0]);
-	ok(num_packets == expect_packets, "received all %d packets (expected %d)",
-			num_packets, expect_packets);
-	close(pipefd[0]);
+	RECEIVE(pipefd);
 
 
 	return exit_status();

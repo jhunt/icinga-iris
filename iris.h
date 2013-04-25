@@ -1,6 +1,6 @@
 #ifndef IRIS_H
 
-#define VERSION "1.0.3"
+#define VERSION "1.1.0"
 #define _GNU_SOURCE
 
 #include <sys/types.h>
@@ -48,6 +48,8 @@
 
 #define IRIS_PDU_V1  1
 
+#define IRIS_MAX_CLIENTS 16 * 1024
+
 // these match the NSLOG_* constants in icinga/logging.h
 #define LOG_ERROR     1
 #define LOG_WARN      2
@@ -66,23 +68,27 @@ struct pdu {
 };
 
 struct client {
-	int  fd;
-	char addr[INET_ADDRSTRLEN];
+	int        fd;
+	int        offset;
+	char       addr[INET_ADDRSTRLEN];
+	struct pdu pdu;
 };
 
 #ifdef DEBUG
 #define vdebug(...) vlog(LOG_INFO, __VA_ARGS__)
+#define vdump(pdu)  pdu_dump(pdu)
 #else
 #define vdebug(...)
+#define vdump(pdu)
 #endif
 
 void strip(char *s);
-void init_crc32(void);
-unsigned long crc32(char *buf, int len);
+unsigned long crc32(void *buf, int len);
 int nonblocking(int fd);
 
-ssize_t pdu_read(int fd, char *buf);
-ssize_t pdu_write(int fd, const char *buf);
+ssize_t pdu_read(int fd, uint8_t *buf, size_t start);
+ssize_t pdu_write(int fd, const uint8_t *buf);
+void pdu_dump(const struct pdu *pdu);
 
 int pdu_pack(struct pdu *pdu);
 int pdu_unpack(struct pdu *pdu);
@@ -98,7 +104,10 @@ int read_packets(FILE *io, struct pdu **packets, const char *delim);
 void mainloop(int sockfd, int epfd);
 int recv_data(int fd);
 
-const char *client_get(int fd);
-const char *client_set(int fd, const void *ip);
+int client_init(int n);
+struct client *client_find(int fd);
+struct client *client_new(int fd, void *ip);
+void client_close(int fd);
+const char *client_addr(int fd);
 
 #endif

@@ -76,7 +76,7 @@ int main(int argc, char **argv)
 	fd = net_connect(NET_HOST, atoi(NET_PORT));
 	ok(fd >= 0, "connected to %s:%s", NET_HOST, NET_PORT);
 
-	len = pdu_write(fd, (char*)&pdu);
+	len = pdu_write(fd, (uint8_t*)&pdu);
 	ok(len == sizeof(pdu), "sent PDU %d/%d bytes to the server", len, sizeof(pdu));
 	shutdown(fd, SHUT_WR);
 	close(fd);
@@ -85,7 +85,7 @@ int main(int argc, char **argv)
 	fd = net_connect(NET_HOST_DNS, atoi(NET_PORT));
 	ok(fd >= 0, "connected to %s:%s", NET_HOST_DNS, NET_PORT);
 
-	len = pdu_write(fd, (char*)&pdu);
+	len = pdu_write(fd, (uint8_t*)&pdu);
 	ok(len == sizeof(pdu), "sent PDU %d/%d bytes to the server", len, sizeof(pdu));
 	shutdown(fd, SHUT_WR);
 	close(fd);

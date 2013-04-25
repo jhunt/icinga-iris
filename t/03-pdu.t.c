@@ -24,7 +24,7 @@ int main(int argc, char **argv)
 	ok(pdu_pack(&pdu) == 0, "packed the PDU");
 	memcpy(&copy, &pdu, sizeof(copy));
 	copy.crc32 = 0x0000;
-	ok(pdu.crc32 == htonl(crc32((char*)&copy, sizeof(copy))), "CRC calculated");
+	ok(pdu.crc32 == htonl(crc32((uint8_t*)&copy, sizeof(copy))), "CRC calculated");
 
 	ok(pdu_unpack(&pdu) == 0, "unpacked the PDU");
 	ok(pdu.crc32 != 0,   "pdu_unpack leaves CRC intact");
@@ -34,7 +34,7 @@ int main(int argc, char **argv)
 
 	/* screw up the crc32 */
 	ok(pdu_pack(&pdu) == 0, "repacked the PDU");
-	pdu.crc32 = htonl(crc32("xyzzy", 5));
+	pdu.crc32 = htonl(crc32((uint8_t*)"xyzzy", 5));
 	ok(pdu_unpack(&pdu) != 0, "unpack fails, because of CRC mismatch");
 
 	/* PDU from the far past (<900s ago) */
@@ -53,7 +53,7 @@ int main(int argc, char **argv)
 	pdu.version = htons(2);
 	// since we meddle with version, we have to handle CRC32 ourselves...
 	pdu.crc32   = 0x0000;
-	pdu.crc32   = htonl(crc32((char*)&pdu, sizeof(pdu)));
+	pdu.crc32   = htonl(crc32((uint8_t*)&pdu, sizeof(pdu)));
 	// and check
 	ok(pdu_unpack(&pdu) != 0, "unpack fails, due to PDU version");
 

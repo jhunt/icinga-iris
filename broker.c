@@ -75,6 +75,8 @@ void* iris_daemon(void *udata)
 {
 	int sockfd, epfd;
 	vlog(LOG_PROC, "IRIS: starting up the iris daemon on *:%s", IRIS_DEFAULT_PORT);
+	vlog(LOG_PROC, "IRIS: maximum concurrent clients is %d",
+			client_init(IRIS_MAX_CLIENTS));
 
 	// bind and listen on our port, all interfaces
 	if ((sockfd = net_bind(NULL, IRIS_DEFAULT_PORT)) < 0) {

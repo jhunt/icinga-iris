@@ -70,13 +70,13 @@ ssize_t pdu_read(int fd, uint8_t *buf, size_t start)
 	uint8_t *ptr = buf+start;
 
 	if (!buf) {
-		vlog(LOG_INFO, "pdu_read: received a NULL buffer...");
+		vdebug("IRIS: pdu_read: received a NULL buffer...");
 		errno = EINVAL;
 		return -1;
 	}
 
 	if (start != 0) {
-		vlog(LOG_INFO, "pdu_read: starting at byte offset %d for read of %d bytes from %s fd %d",
+		vdebug("IRIS: pdu_read: starting at byte offset %d for read of %d bytes from %s fd %d",
 				start, len, client_addr(fd), fd);
 	}
 
@@ -158,7 +158,7 @@ int pdu_unpack(struct pdu *pdu)
 	// put the CRC32 back...
 	pdu->crc32 = their_crc;
 	if (our_crc != their_crc) {
-		vlog(LOG_INFO, "IRIS: CRC mismatch (calculated %x != %x)", our_crc, their_crc);
+		vlog(LOG_INFO, "IRIS: Bogus Packet - CRC mismatch (calculated %x != %x)", our_crc, their_crc);
 		vdump(pdu);
 		return -1;
 	}
@@ -168,7 +168,7 @@ int pdu_unpack(struct pdu *pdu)
 	pdu->ts      = ntohl(pdu->ts);      // LCOV_EXCL_LINE
 
 	if (pdu->version != IRIS_PROTOCOL_VERSION) {
-		vlog(LOG_INFO, "IRIS: incorrect PDU version (got %d, wanted %d)", pdu->version, IRIS_PROTOCOL_VERSION);
+		vlog(LOG_INFO, "IRIS: Bogus Packet - Incorrect PDU version (got %d, wanted %d)", pdu->version, IRIS_PROTOCOL_VERSION);
 		return -1;
 	}
 
@@ -180,7 +180,7 @@ int pdu_unpack(struct pdu *pdu)
 		age = (long)(now - pdu->ts);
 	}
 	if (age > 900) { // FIXME: configuration file?
-		vlog(LOG_INFO, "IRIS: Packet age is %ds in the %s", age,
+		vlog(LOG_INFO, "IRIS: Bogus Packet - PDU timestamp is %ds in the %s", age,
 			(pdu->ts > (uint32_t)(now) ? "future" : "past"));
 		return -1;
 	}
@@ -281,7 +281,7 @@ int net_accept(int sockfd, int epfd)
 	}
 
 	if ((client = client_new(connfd, &(in_addr.sin_addr))) != NULL) {
-		vlog(LOG_INFO, "IRIS: accepted inbound connection from %s, fd %d", client->addr, connfd);
+		vdebug("IRIS: accepted inbound connection from %s, fd %d", client->addr, connfd);
 	}
 	return connfd;
 }
@@ -436,7 +436,7 @@ int recv_data(int fd)
 		if (len <= 0) {
 			if (errno == EAGAIN) return 0;
 			if (len == 0)
-				vlog(LOG_INFO, "IRIS: EOF from %s, fd %d", c->addr, fd);
+				vdebug("IRIS: EOF from %s, fd %d", c->addr, fd);
 			else
 				vlog(LOG_INFO, "IRIS: failed to read from %s: %s",
 						c->addr, strerror(errno));
@@ -446,11 +446,11 @@ int recv_data(int fd)
 		}
 
 		c->offset += len;
-		vlog(LOG_INFO, "IRIS >> fd(%d): read %d (for %d total)i from %s",
+		vdebug("IRIS >> fd(%d): read %d (for %d total) from %s",
 				fd, len, c->offset, c->addr);
 
 		if (c->offset < sizeof(c->pdu)) {
-			vlog(LOG_INFO, "IRIS: Read a partial PDU (%d/%d bytes) from %s, fd %d",
+			vdebug("IRIS: Read a partial PDU (%d/%d bytes) from %s, fd %d",
 					c->offset, sizeof(c->pdu), c->addr, fd);
 			continue;
 		}
@@ -458,11 +458,13 @@ int recv_data(int fd)
 		c->offset = 0;
 		if (pdu_unpack(&c->pdu) != 0) {
 			vlog(LOG_WARN, "IRIS: discarding bogus packet from %s, fd %d", c->addr, fd);
+#ifdef DEBUG
 			uint8_t *byte = ((uint8_t*)(&c->pdu));
 			int off = 0;
 			for (off = 0; off < sizeof(c->pdu) && *(byte+off) == '\0'; off++)
 				;
-			vlog(LOG_INFO, "IRIS: first non-null byte in %s recv buffer is at position %d\n", c->addr, off);
+			vdebug("IRIS: first non-null byte in %s recv buffer is at position %d\n", c->addr, off);
+#endif
 			memset(&c->pdu, 0, sizeof(c->pdu));
 			continue;
 		}
@@ -518,7 +520,7 @@ struct client* client_new(int fd, void *ip)
 	c->offset = 0;
 	memset(&c->pdu, 0, sizeof(struct pdu));
 
-	vlog(LOG_INFO, "IRIS: client %d {fd: '%d', offset: '%d', addr: '%s', pdu: <ignored>'}",
+	vdebug("IRIS: client %d {fd: '%d', offset: '%d', addr: '%s', pdu: <ignored>'}",
 			fd, c->fd, c->offset, c->addr);
 
 	return c;

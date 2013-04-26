@@ -39,30 +39,33 @@ void vlog(unsigned int level, const char *fmt, ...)
 void iris_call_submit_result(struct pdu *pdu)
 {
 	check_result *res = malloc(sizeof(check_result));
-	init_check_result(res);
+	if (init_check_result(res) != OK) {
+		vlog(LOG_ERROR, "Failed to initialize Icinga check_result object for submission of"
+				" %s/%s %d '%s'", pdu->host, pdu->service, pdu->rc, pdu->output);
+		return;
+	}
 
+	res->next           = NULL;
 	res->output_file    = NULL;
 	res->output_file_fd = -1;
 
-	res->host_name = strdup(pdu->host);
+	res->host_name = strndup(pdu->host, IRIS_PDU_HOST_LEN-1);
 	if (strcmp(pdu->service, "HOST") != 0) {
-		res->service_description = strdup(pdu->service);
+		res->service_description = strndup(pdu->service, IRIS_PDU_SERVICE_LEN-1);
 		res->object_check_type = SERVICE_CHECK;
 	}
 
-	res->output = strdup(pdu->output);
+	res->output = strndup(pdu->output, IRIS_PDU_OUTPUT_LEN-1);
 
 	res->return_code = pdu->rc;
 	res->exited_ok = 1;
 	res->check_type = SERVICE_CHECK_PASSIVE;
 
-	res->start_time.tv_sec = pdu->ts;
-	res->start_time.tv_usec = 0;
-	res->finish_time = res->start_time;
+	res->start_time.tv_sec  = res->finish_time.tv_sec  = pdu->ts;
+	res->start_time.tv_usec = res->finish_time.tv_usec = 0;
 
-	add_check_result_to_list(res);
 	// Icinga is now responsible for malloc'd _res_ memory
-
+	add_check_result_to_list(res);
 	vdebug("IRIS: submitted result to main process");
 }
 

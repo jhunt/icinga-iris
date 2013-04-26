@@ -1,5 +1,5 @@
 Name: icinga-iris
-Version: 1.1.4
+Version: 1.1.5
 Release: %{_release}
 License: Proprietary
 Source: %{name}-%{version}.tar.gz
@@ -60,5 +60,11 @@ rm -rf $RPM_BUILD_ROOT
 %{_bindir}/send_iris
 
 %changelog
+* Fri Apr 26 2013 James Hunt <jhunt@synacor.com> 1.1.5-1
+- Fix deinit problems, to avoid failure on reload / SIGHUP
+
+* Thu Apr 25 2013 James Hunt <jhunt@synacor.com> 1.1.4-1
+- Fix mutex problems with Icinga internals
+
 * Mon Apr 22 2013 James Hunt <jhunt@synacor.com> 1.0.0-1
 - Initial package

@@ -19,8 +19,9 @@ NEB_API_VERSION(CURRENT_NEB_API_VERSION);
 
 /*************************************************************/
 
-static void *IRIS_MODULE;
+static void *IRIS_MODULE = NULL;
 pthread_t tid;
+int sockfd, epfd;
 
 /*************************************************************/
 
@@ -76,7 +77,6 @@ int iris_call_recv_data(int fd)
 
 void* iris_daemon(void *udata)
 {
-	int sockfd, epfd;
 	vlog(LOG_PROC, "IRIS: starting up the iris daemon on *:%s", IRIS_DEFAULT_PORT);
 	vlog(LOG_PROC, "IRIS: maximum concurrent clients is %d",
 			client_init(IRIS_MAX_CLIENTS));
@@ -95,10 +95,6 @@ void* iris_daemon(void *udata)
 
 	// and loop
 	mainloop(sockfd, epfd);
-
-	// cleanup
-	close(sockfd);
-	close(epfd);
 	return NULL;
 }
 
@@ -107,10 +103,26 @@ int iris_hook(int event, void *data)
 	if (event != NEBCALLBACK_PROCESS_DATA) return 0;
 
 	nebstruct_process_data *proc = (nebstruct_process_data*)data;
-	if (proc->type != NEBTYPE_PROCESS_EVENTLOOPSTART) return 0;
+	switch (proc->type) {
+	case NEBTYPE_PROCESS_EVENTLOOPSTART:
+		vlog(LOG_PROC, "IRIS: v" VERSION " starting up");
+		pthread_create(&tid, 0, iris_daemon, data);
+		break;
 
-	vlog(LOG_PROC, "IRIS: v" VERSION " starting up");
-	pthread_create(&tid, 0, iris_daemon, data);
+	case NEBTYPE_PROCESS_EVENTLOOPEND:
+		vlog(LOG_PROC, "IRIS: v" VERSION " shutting down");
+		pthread_cancel(tid);
+		pthread_join(tid, NULL);
+
+		vdebug("IRIS: closing sockfd %d and epfd %d", sockfd, epfd);
+		close(sockfd); close(epfd);
+
+		break;
+
+	default:
+		break;
+	}
+
 	return 0;
 }
 
@@ -121,6 +133,7 @@ int nebmodule_init(int flags, char *args, nebmodule *mod)
 	int rc;
 	IRIS_MODULE = mod;
 
+	vdebug("IRIS: init started");
 	rc = neb_register_callback(NEBCALLBACK_PROCESS_DATA, IRIS_MODULE, 0, iris_hook);
 	if (rc != 0) {
 		vlog(LOG_ERROR, "IRIS: PROCESS_DATA event registration failed, error %i", rc);
@@ -131,10 +144,7 @@ int nebmodule_init(int flags, char *args, nebmodule *mod)
 
 int nebmodule_deinit(int flags, int reason)
 {
-	vlog(LOG_PROC, "IRIS: v" VERSION " shutting down");
-	// FIXME: look at pthread_join to kill iris "daemon"
 	neb_deregister_callback(NEBCALLBACK_PROCESS_DATA, iris_hook);
-
-	vdebug("IRIS: shutdown complete");
+	vdebug("IRIS: deinit complete");
 	return 0;
 }

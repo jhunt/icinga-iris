@@ -1,6 +1,6 @@
 #ifndef IRIS_H
 
-#define VERSION "1.1.4"
+#define VERSION "1.1.5"
 #define _GNU_SOURCE
 
 #include <sys/types.h>

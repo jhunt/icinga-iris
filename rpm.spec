@@ -22,7 +22,7 @@ This package provides the broker module that runs on the Icinga server.
 
 # Uncomment the following line to get debuginfo builds outside of CI
 # (Note: the CI build boxes get angry if they see this uncommented)
-#%debug_package
+#%(REMOVE_ME)debug_package
 
 %package send
 Group: Application/System

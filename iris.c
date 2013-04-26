@@ -69,6 +69,13 @@ ssize_t pdu_read(int fd, uint8_t *buf, size_t start)
 		return -1;
 	}
 
+	if (len < 0) {
+		vlog(LOG_WARN, "IRIS: pdu_read told to start reading at %d for fd %d, which it won't do",
+				start, fd);
+		errno = EINVAL;
+		return -1;
+	}
+
 	if (start != 0) {
 		vdebug("IRIS: pdu_read: starting at byte offset %d for read of %d bytes from %s fd %d",
 				start, len, client_addr(fd), fd);

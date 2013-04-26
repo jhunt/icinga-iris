@@ -16,32 +16,26 @@ void strip(char *s)
 		;
 }
 
-static void crc32_init(void)
-{
-	unsigned long crc;
-	int i, j;
-	if (CRC32[144]) return;
-
-	for (i = 0; i < 256; i++) {
-		crc = i;
-		for (j = 8; j > 0; j--) {
-			if (crc & 1) {
-				crc = (crc >> 1) ^ 0xedb88320L;
-			} else {
-				crc >>= 1;
-			}
-		}
-		CRC32[i] = crc;
-	}
-}
-
 unsigned long crc32(void *ptr, int len)
 {
 	register unsigned long crc;
-	int c, i;
-	uint8_t *buf = (uint8_t*)ptr;
+	int i, j;
+	uint8_t c, *buf = (uint8_t*)ptr;
 
-	crc32_init(); // FIXME: unroll this?
+	if (CRC32[144] == 0) {
+		for (i = 0; i < 256; i++) {
+			crc = i;
+			for (j = 8; j > 0; j--) {
+				if (crc & 1) {
+					crc = (crc >> 1) ^ 0xedb88320L;
+				} else {
+					crc >>= 1;
+				}
+			}
+			CRC32[i] = crc;
+		}
+	}
+
 	if (!buf) return 0;
 
 	crc = 0xFFFFFFFF;

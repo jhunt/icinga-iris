@@ -449,6 +449,7 @@ int recv_data(int fd)
 		}
 
 		c->offset += len;
+		c->bytes += len;
 		vdebug("IRIS >> fd(%d): read %d (for %d total) from %s",
 				fd, len, c->offset, c->addr);
 
@@ -521,8 +522,10 @@ struct client* client_new(int fd, void *ip)
 
 	c->fd = fd;
 	c->offset = 0;
+	c->bytes = 0;
 	memset(&c->pdu, 0, sizeof(struct pdu));
 
+	vdebug("IRIS: client %d // %s session starting", fd, c->addr);
 	vdebug("IRIS: client %d {fd: '%d', offset: '%d', addr: '%s', pdu: <ignored>'}",
 			fd, c->fd, c->offset, c->addr);
 
@@ -533,6 +536,7 @@ void client_close(int fd)
 {
 	struct client *c = client_find(fd);
 	if (c) {
+		vdebug("IRIS: client %d // %s session ending (sent %d bytes)", fd, c->addr, c->bytes);
 		vdebug("IRIS: closing connection from %s, fd %d", c->addr, fd);
 		c->fd = -1;
 		close(fd);

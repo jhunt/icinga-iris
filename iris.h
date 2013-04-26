@@ -72,6 +72,7 @@ struct client {
 	int        offset;
 	char       addr[INET_ADDRSTRLEN];
 	struct pdu pdu;
+	size_t     bytes;
 };
 
 #ifdef DEBUG

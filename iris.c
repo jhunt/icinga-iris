@@ -426,7 +426,15 @@ int recv_data(int fd)
 
 	c = client_find(fd);
 	if (!c) {
+#ifdef DEBUG
 		vlog(LOG_WARN, "IRIS: could not find a client session for fd %d", fd);
+		int i;
+		for (i = 0; i < NUM_CLIENTS; i++) {
+			if (CLIENTS[i].fd == -1) continue;
+			vlog(LOG_WARN, "IRIS:  client[%d] fd = %d // %s", i,
+					CLIENTS[i].fd, CLIENTS[i].addr);
+		}
+#endif
 		return 0;
 	}
 

@@ -14,7 +14,7 @@ use IO::Socket;
 use Getopt::Long;
 my %OPTIONS = (
 	timeout   => 10,
-	port      => 5667,
+	port      => 5668,
 	delimiter => "\t",
 );
 GetOptions(\%OPTIONS,

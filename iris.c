@@ -390,29 +390,31 @@ void mainloop(int sockfd, int epfd)
 					(events[i].events & EPOLLIN    ? " EPOLLIN"    : ""));
 #endif
 
-			// ERROR event
-			if ((events[i].events & EPOLLERR)   || // error on fd
-			    (events[i].events & EPOLLHUP)   || // force closure (thanks, kernel)
-			    (events[i].events & EPOLLRDHUP) || // client shutdown(x, SHUT_WR)
-			    !(events[i].events & EPOLLIN)) {   // not really readable (???)
-
-				client_close(events[i].data.fd);
-				continue;
-			}
-
 			// CONNECT event
 			if (events[i].data.fd == sockfd) {
 				vdebug("IRIS: processing inbound connections", sockfd);
 				while (net_accept(sockfd, epfd) >= 0)
 					;
+				continue;
+			}
 
-			} else if (events[i].events & EPOLLIN) {
+			// DATA event
+			if (events[i].events & EPOLLIN) {
 				vdebug("IRIS: processing readable filehandle");
 				if (iris_call_recv_data(events[i].data.fd) != 0) {
 					vlog(LOG_PROC, "IRIS: event loop terminating (recv_data signalled an error)");
 					return;
 				}
+				continue;
 			}
+
+			vlog(LOG_INFO, "IRIS: unhandled activity on %d: %04x =%s%s%s%s",
+					events[i].data.fd, events[i].events,
+					(events[i].events & EPOLLERR   ? " EPOLLERR"   : ""),
+					(events[i].events & EPOLLHUP   ? " EPOLLHUP"   : ""),
+					(events[i].events & EPOLLRDHUP ? " EPOLLRDHUP" : ""),
+					(events[i].events & EPOLLIN    ? " EPOLLIN"    : ""));
+			client_close(events[i].data.fd);
 		}
 	}
 }

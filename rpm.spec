@@ -20,7 +20,9 @@ processing queues.
 
 This package provides the broker module that runs on the Icinga server.
 
-%debug_package
+# Uncomment the following line to get debuginfo builds outside of CI
+# (Note: the CI build boxes get angry if they see this uncommented)
+#%debug_package
 
 %package send
 Group: Application/System

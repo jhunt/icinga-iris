@@ -1,6 +1,6 @@
 #ifndef IRIS_H
 
-#define VERSION "1.1.5"
+#define VERSION "1.1.6"
 #define _GNU_SOURCE
 
 #include <sys/types.h>
@@ -105,6 +105,7 @@ void mainloop(int sockfd, int epfd);
 int recv_data(int fd);
 
 int client_init(int n);
+void client_deinit(void);
 struct client *client_find(int fd);
 struct client *client_new(int fd, void *ip);
 void client_close(int fd);

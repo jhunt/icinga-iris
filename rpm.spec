@@ -60,6 +60,9 @@ rm -rf $RPM_BUILD_ROOT
 %{_bindir}/send_iris
 
 %changelog
+* Tue May 07 2013 James Hunt <jhunt@synacor.com> 1.1.6-1
+- Close client connections and dealloc memory on EVENTLOOPEND (ITM-2350)
+
 * Fri Apr 26 2013 James Hunt <jhunt@synacor.com> 1.1.5-1
 - Fix deinit problems, to avoid failure on reload / SIGHUP
 

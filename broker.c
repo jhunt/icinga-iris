@@ -78,8 +78,6 @@ int iris_call_recv_data(int fd)
 void* iris_daemon(void *udata)
 {
 	vlog(LOG_PROC, "IRIS: starting up the iris daemon on *:%s", IRIS_DEFAULT_PORT);
-	vlog(LOG_PROC, "IRIS: maximum concurrent clients is %d",
-			client_init(IRIS_MAX_CLIENTS));
 
 	// bind and listen on our port, all interfaces
 	if ((sockfd = net_bind(NULL, IRIS_DEFAULT_PORT)) < 0) {
@@ -106,6 +104,8 @@ int iris_hook(int event, void *data)
 	switch (proc->type) {
 	case NEBTYPE_PROCESS_EVENTLOOPSTART:
 		vlog(LOG_PROC, "IRIS: v" VERSION " starting up");
+		vlog(LOG_PROC, "IRIS: maximum concurrent clients is %d",
+				client_init(IRIS_MAX_CLIENTS));
 		pthread_create(&tid, 0, iris_daemon, data);
 		break;
 
@@ -114,6 +114,7 @@ int iris_hook(int event, void *data)
 		pthread_cancel(tid);
 		pthread_join(tid, NULL);
 
+		client_deinit();
 		vdebug("IRIS: closing sockfd %d and epfd %d", sockfd, epfd);
 		close(sockfd); close(epfd);
 

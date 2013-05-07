@@ -505,6 +505,18 @@ int client_init(int n)
 	return NUM_CLIENTS;
 }
 
+void client_deinit(void)
+{
+	int n;
+	for (n = 0; n < NUM_CLIENTS; n++) {
+		if (CLIENTS[n].fd >= 0) {
+			vdebug("IRIS: closing connected client fd %d", CLIENTS[n].fd);
+			close(CLIENTS[n].fd);
+		}
+	}
+	free(CLIENTS);
+}
+
 struct client* client_find(int fd)
 {
 	int i;

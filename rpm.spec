@@ -1,5 +1,5 @@
 Name: icinga-iris
-Version: 1.1.5
+Version: 1.1.6
 Release: %{_release}
 License: Proprietary
 Source: %{name}-%{version}.tar.gz

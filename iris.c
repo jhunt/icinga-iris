@@ -514,7 +514,8 @@ void client_deinit(void)
 			close(CLIENTS[n].fd);
 		}
 	}
-	free(CLIENTS);
+	// FIXME: don't free CLIENTS yet, we need ITM-2357
+	//free(CLIENTS);
 }
 
 struct client* client_find(int fd)

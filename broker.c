@@ -14,6 +14,7 @@
 #include "common.h"
 #include "icinga.h"
 
+#define WHIMP_OUT_ON_RELOAD
 
 NEB_API_VERSION(CURRENT_NEB_API_VERSION);
 
@@ -111,11 +112,16 @@ int iris_hook(int event, void *data)
 
 	case NEBTYPE_PROCESS_EVENTLOOPEND:
 		vlog(LOG_PROC, "IRIS: v" VERSION " shutting down");
+
+#ifdef WHIMP_OUT_ON_RELOAD
+		vlog(LOG_PROC, "IRIS: not properly shutting down - WHIMPING OUT ON RELOAD");
+#else
 		pthread_cancel(tid);
 		pthread_join(tid, NULL);
 
 		vdebug("IRIS: closing sockfd %d and epfd %d", sockfd, epfd);
 		close(sockfd); close(epfd);
+#endif
 
 		break;
 

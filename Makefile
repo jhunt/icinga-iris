@@ -20,11 +20,12 @@ test_runners := $(subst .t.c,.t,$(shell ls -1 t/*.t.c))
 no_lcov_c := test/*.t
 
 
-all: iris.so send_iris
+all: iris.so send_iris iriscfg
 iris.so: iris.lo broker.lo
 	libtool --mode link gcc $(CFLAGS) -o libiris.la $+ -rpath /usr/lib -lm -lpthread
 	mv .libs/libiris.so.0.0.0 $@
 send_iris: iris.o send_iris.o
+iriscfg:   iris.o iriscfg.o
 
 
 stat: all
@@ -51,6 +52,7 @@ clean: cleancov
 	rm -f t/*.o t/*.t
 	rm -f lcov.info
 	rm -f send_iris
+	rm -f iriscfg
 .PHONY: clean
 cleancov:
 	find . -name '*.gcda' -o -name '*.gcno' 2>/dev/null | xargs rm -f
@@ -78,4 +80,5 @@ t/45-net-server.t: t/45-net-server.t.o iris.o
 t/45-net-client.t: t/45-net-client.t.o iris.o
 t/46-recv.t: t/46-recv.t.o iris.o
 t/50-segv.t: t/50-segv.t.c iris.o
+t/60-config.t: t/60-config.t.o iris.o
 t/70-stressmem.t: t/70-stressmem.t.o iris.o

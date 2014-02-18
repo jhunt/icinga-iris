@@ -16,7 +16,6 @@ void iris_call_submit_result(struct pdu *pdu)
 			pdu->rc, num_packets % 3);
 	num_packets++;
 }
-void vlog(unsigned int level, const char *fmt, ...) { }
 
 int child_main(int fd)
 {

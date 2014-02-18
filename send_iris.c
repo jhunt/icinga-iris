@@ -3,15 +3,6 @@
 // make iris.o happy
 void iris_call_submit_result(struct pdu *pdu) { }
 int iris_call_recv_data(int fd) { return 0; }
-void vlog(unsigned int level, const char *fmt, ...)
-{
-	if (!level) return;
-	va_list ap; va_start(ap, fmt);
-	vfprintf(stderr, fmt, ap);
-	fprintf(stderr, "\n");
-	va_end(ap);
-}
-
 struct {
 	char *host;
 	int   port;
@@ -21,7 +12,7 @@ struct {
 } OPTS = {
 	.host    = NULL,
 	.port    = 0,
-	.timeout = IRIS_DEFAULT_TIMEOUT,
+	.timeout = 10,
 	.quiet   = 0,
 	.delim   = "\t"
 };
@@ -72,11 +63,11 @@ int process_args(int argc, char **argv)
 			printf("\n");
 			printf("  -p <port>\n");
 			printf("      TCP port to connect to.\n");
-			printf("      Defaults to %s\n", IRIS_DEFAULT_PORT);
+			printf("      Defaults to 5668\n");
 			printf("\n");
 			printf("  -t <timeout>\n");
 			printf("      Connection timeout, in seconds.\n");
-			printf("      Defaults to %d\n", IRIS_DEFAULT_TIMEOUT);
+			printf("      Defaults to %d\n", 10);
 			printf("\n");
 			exit(0);
 			break;
@@ -89,7 +80,7 @@ int process_args(int argc, char **argv)
 	}
 
 	if (OPTS.port == 0)
-		OPTS.port = atoi(IRIS_DEFAULT_PORT);
+		OPTS.port = 5668;
 	return 0;
 }
 

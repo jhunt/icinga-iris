@@ -14,7 +14,6 @@ int iris_call_recv_data(int fd)
 	if (children <= 0) return -2; // force loop exit
 	return -1; // force a close
 }
-void vlog(unsigned int level, const char *fmt, ...) { }
 
 int child_main(int rc)
 {

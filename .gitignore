@@ -5,6 +5,7 @@
 *.la
 .libs
 send_iris
+iriscfg
 perf/*.out
 t/*.t
 

@@ -1,6 +1,6 @@
 #ifndef IRIS_H
 
-#define VERSION "1.1.6"
+#define VERSION "1.1.7"
 #define _GNU_SOURCE
 
 #include <sys/types.h>
@@ -11,6 +11,8 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdarg.h>
+
+#include <syslog.h>
 
 #include <ctype.h>
 #include <time.h>
@@ -32,9 +34,8 @@
 #  define EPOLLRDHUP 0x2000
 #endif
 
+#define IRIS_DEFAULT_CONFIG_FILE  "/etc/icinga/iris.conf"
 
-#define IRIS_DEFAULT_PORT         "5668"
-#define IRIS_DEFAULT_TIMEOUT         10
 #define IRIS_PROTOCOL_VERSION         1
 
 /* Maximum number of file descriptors that a single epoll_wait
@@ -47,14 +48,10 @@
 
 #define IRIS_PDU_V1  1
 
-#define IRIS_MAX_CLIENTS 16 * 1024
-
-// these match the NSLOG_* constants in icinga/logging.h
-#define LOG_ERROR     1
-#define LOG_WARN      2
-#define LOG_PROC      64
-#define LOG_RESULT    131072
-#define LOG_INFO      262144
+#define LOG_ERROR  LOG_ERR
+#define LOG_WARN   LOG_WARNING
+#define LOG_PROC   LOG_INFO
+#define LOG_RESULT LOG_NOTICE
 
 struct pdu {
 	uint32_t crc32;
@@ -66,6 +63,15 @@ struct pdu {
 	char     output[IRIS_PDU_OUTPUT_LEN];
 };
 
+struct server {
+	char     *port;
+	uint8_t   timeout;
+	uint32_t  max_clients;
+
+	char     *syslog_ident;
+	char     *syslog_facility;
+};
+
 struct client {
 	int        fd;
 	int        offset;
@@ -75,7 +81,7 @@ struct client {
 };
 
 #ifdef DEBUG
-#define vdebug(...) vlog(LOG_INFO, __VA_ARGS__)
+#define vdebug(...) syslog(LOG_DEBUG, __VA_ARGS__)
 #define vdump(pdu)  pdu_dump(pdu)
 #else
 #define vdebug(...)
@@ -85,6 +91,10 @@ struct client {
 void strip(char *s);
 unsigned long crc32(void *buf, int len);
 int nonblocking(int fd);
+
+int server_init(struct server *s);
+int parse_config_file(const char *file, struct server *s);
+int parse_config(FILE *io, struct server *s);
 
 ssize_t pdu_read(int fd, uint8_t *buf, size_t start);
 ssize_t pdu_write(int fd, const uint8_t *buf);

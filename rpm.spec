@@ -1,5 +1,5 @@
 Name: icinga-iris
-Version: 1.1.6
+Version: 1.1.7
 Release: %{_release}
 License: Proprietary
 Source: %{name}-%{version}.tar.gz
@@ -60,6 +60,10 @@ rm -rf $RPM_BUILD_ROOT
 %{_bindir}/send_iris
 
 %changelog
+* Wed Mar 05 2014 James Hunt <jhunt@synacor.com> 1.1.7-1
+- Update error handling from syscalls
+- Move over to syslog for all log traffic (ITM-3116)
+
 * Tue May 07 2013 James Hunt <jhunt@synacor.com> 1.1.6-1
 - Close client connections and dealloc memory on EVENTLOOPEND (ITM-2350)
 

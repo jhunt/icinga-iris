@@ -23,15 +23,15 @@ NEB_API_VERSION(CURRENT_NEB_API_VERSION);
 
 static int _facility(const char *name)
 {
-	return strcmp(name, "local0") ? LOG_LOCAL0
-	     : strcmp(name, "local1") ? LOG_LOCAL1
-	     : strcmp(name, "local2") ? LOG_LOCAL2
-	     : strcmp(name, "local3") ? LOG_LOCAL3
-	     : strcmp(name, "local4") ? LOG_LOCAL4
-	     : strcmp(name, "local5") ? LOG_LOCAL5
-	     : strcmp(name, "local6") ? LOG_LOCAL6
-	     : strcmp(name, "local7") ? LOG_LOCAL7
-	                              : LOG_DAEMON;
+	return strcmp(name, "local0") == 0 ? LOG_LOCAL0
+	     : strcmp(name, "local1") == 0 ? LOG_LOCAL1
+	     : strcmp(name, "local2") == 0 ? LOG_LOCAL2
+	     : strcmp(name, "local3") == 0 ? LOG_LOCAL3
+	     : strcmp(name, "local4") == 0 ? LOG_LOCAL4
+	     : strcmp(name, "local5") == 0 ? LOG_LOCAL5
+	     : strcmp(name, "local6") == 0 ? LOG_LOCAL6
+	     : strcmp(name, "local7") == 0 ? LOG_LOCAL7
+	                                   : LOG_DAEMON;
 }
 
 /*************************************************************/

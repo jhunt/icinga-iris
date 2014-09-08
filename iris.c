@@ -1,7 +1,13 @@
 #include "iris.h"
 
+#if _POSIX_MONOTONIC_CLOCK > 0
+#  error "_POSIX_MONOTONIC_CLOCK not set; is the MONOTONIC clock available?"
+#else
+#endif
+
 struct client *CLIENTS = NULL;
 unsigned int NUM_CLIENTS = 0;
+time_t MAX_LIFETIME = 20;
 
 extern void iris_call_submit_result(struct pdu *pdu);
 extern int iris_call_recv_data(int fd);
@@ -66,6 +72,7 @@ int server_init(struct server *s)
 
 	s->port            = strdup("5668");
 	s->max_clients     = 16 * 1024;
+	s->max_lifetime    = MAX_LIFETIME;
 	s->syslog_ident    = strdup("iris");
 	s->syslog_facility = strdup("daemon");
 
@@ -145,6 +152,14 @@ int parse_config(FILE *io, struct server *s)
 				fprintf(stderr, "malformed configuration, line %d: %s\n", line, buf);
 				return 4;
 			}
+		} else if (strcmp(directive, "max_lifetime") == 0) {
+			errno = 0;
+			s->max_lifetime = strtol(value, &endptr, 10);
+			if (errno != 0 || endptr == value) {
+				fprintf(stderr, "malformed configuration, line %d: %s\n", line, buf);
+				return 5;
+			}
+			MAX_LIFETIME = s->max_lifetime;
 		} else if (strcmp(directive, "syslog_ident") == 0) {
 			free(s->syslog_ident);
 			s->syslog_ident = strdup(value);
@@ -370,6 +385,7 @@ int net_accept(int sockfd, int epfd)
 	struct client *client;
 	int connfd;
 
+	clients_purge();
 	vdebug("accepting inbound connection");
 	if ((connfd = accept(sockfd, (struct sockaddr*)&in_addr, &in_len)) < 0) {
 		// EAGAIN / EWOULDBLOCK == no more pending connections
@@ -509,7 +525,7 @@ void mainloop(int sockfd, int epfd)
 
 			// CONNECT event
 			if (events[i].data.fd == sockfd) {
-				vdebug("processing inbound connections", sockfd);
+				vdebug("processing inbound connection on %d", sockfd);
 				while (net_accept(sockfd, epfd) >= 0)
 					;
 				continue;
@@ -557,7 +573,7 @@ int recv_data(int fd)
 
 	vdebug("reading from %s, fd %d", c->addr, fd);
 	for (;;) {
-		vdebug("IRIS >> fd(%d): have %d bytes, want %d total for %s",
+		vdebug("IRIS >> fd(%d): have %d bytes, want %lu total for %s",
 				fd, c->offset, sizeof(c->pdu), c->addr);
 
 		len = pdu_read(fd, (uint8_t*)(&c->pdu), c->offset);
@@ -575,11 +591,11 @@ int recv_data(int fd)
 
 		c->offset += len;
 		c->bytes += len;
-		vdebug("IRIS >> fd(%d): read %d (for %d total) from %s",
+		vdebug("IRIS >> fd(%d): read %lu (for %d total) from %s",
 				fd, len, c->offset, c->addr);
 
 		if (c->offset < sizeof(c->pdu)) {
-			vdebug("Read a partial PDU (%d/%d bytes) from %s, fd %d",
+			vdebug("Read a partial PDU (%d/%lu bytes) from %s, fd %d",
 					c->offset, sizeof(c->pdu), c->addr, fd);
 			continue;
 		}
@@ -662,6 +678,8 @@ struct client* client_new(int fd, void *ip)
 	c->offset = 0;
 	c->bytes = 0;
 	memset(&c->pdu, 0, sizeof(struct pdu));
+	clock_gettime(CLOCK_MONOTONIC, &c->deadline);
+	c->deadline.tv_sec += MAX_LIFETIME;
 
 	vdebug("client %d // %s session starting", fd, c->addr);
 	vdebug("client %d {fd: '%d', offset: '%d', addr: '%s', pdu: <ignored>'}",
@@ -674,7 +692,7 @@ void client_close(int fd)
 {
 	struct client *c = client_find(fd);
 	if (c) {
-		vdebug("client %d // %s session ending (sent %d bytes)", fd, c->addr, c->bytes);
+		vdebug("client %d // %s session ending (sent %lu bytes)", fd, c->addr, c->bytes);
 		vdebug("closing connection from %s, fd %d", c->addr, fd);
 		c->fd = -1;
 		close(fd);
@@ -686,4 +704,25 @@ const char *client_addr(int fd)
 	struct client *c = client_find(fd);
 	if (c) return c->addr;
 	return NULL;
+}
+
+#define past_deadline(n,d) ((n).tv_sec > (d).tv_sec || \
+                            ((n).tv_sec  == (d).tv_sec && \
+                             (n).tv_nsec >= (d).tv_nsec))
+
+void clients_purge(void)
+{
+	struct timespec now;
+	int i;
+
+	clock_gettime(CLOCK_MONOTONIC, &now);
+	for (i = 0; i < NUM_CLIENTS; i++) {
+		if (CLIENTS[i].fd >= 0 && past_deadline(now, CLIENTS[i].deadline)) {
+			vdebug("client %d // %s is past deadline of %i.%i (now = %i.%i)",
+					CLIENTS[i].fd, CLIENTS[i].addr,
+					(int)CLIENTS[i].deadline.tv_sec, (int)CLIENTS[i].deadline.tv_nsec,
+					(int)now.tv_sec, (int)now.tv_nsec);
+			client_close(CLIENTS[i].fd);
+		}
+	}
 }

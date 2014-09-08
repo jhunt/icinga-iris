@@ -63,6 +63,7 @@ int main(int argc, char **argv)
 	printf("port            = %s\n", s.port);
 	printf("timeout         = %i\n", s.timeout);
 	printf("max_clients     = %i\n", s.max_clients);
+	printf("max_lifetime    = %i\n", (int)s.max_lifetime);
 	printf("syslog_ident    = %s\n", s.syslog_ident);
 	printf("syslog_facility = %s\n", s.syslog_facility);
 	return 0;

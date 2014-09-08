@@ -1,6 +1,6 @@
 #ifndef IRIS_H
 
-#define VERSION "1.1.7"
+#define VERSION "1.1.8"
 #define _GNU_SOURCE
 
 #include <sys/types.h>
@@ -27,6 +27,8 @@
 #include <arpa/inet.h>
 
 #include <sys/epoll.h>
+
+#include <time.h>
 
 /* Define EPOLLRDHUP ourselves, if the kernel didn't do it already.
    see http://sourceware.org/bugzilla/show_bug.cgi?id=5040 */
@@ -67,17 +69,19 @@ struct server {
 	char     *port;
 	uint8_t   timeout;
 	uint32_t  max_clients;
+	time_t    max_lifetime;
 
 	char     *syslog_ident;
 	char     *syslog_facility;
 };
 
 struct client {
-	int        fd;
-	int        offset;
-	char       addr[INET_ADDRSTRLEN];
-	struct pdu pdu;
-	size_t     bytes;
+	int             fd;
+	int             offset;
+	char            addr[INET_ADDRSTRLEN];
+	struct pdu      pdu;
+	size_t          bytes;
+	struct timespec deadline;
 };
 
 #ifdef DEBUG
@@ -120,5 +124,7 @@ struct client *client_find(int fd);
 struct client *client_new(int fd, void *ip);
 void client_close(int fd);
 const char *client_addr(int fd);
+
+void clients_purge(void);
 
 #endif

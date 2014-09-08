@@ -1,4 +1,5 @@
 CFLAGS  := -Wall -Iicinga -O -g
+LDFLAGS := -lrt
 LCOV    := lcov --directory . --base-directory .
 GENHTML := genhtml --prefix $(shell dirname `pwd`)
 # -e '' tempers prove's insistence that everything is Perl
@@ -22,7 +23,7 @@ no_lcov_c := test/*.t
 
 all: iris.so send_iris iriscfg
 iris.so: iris.lo broker.lo
-	libtool --mode link gcc $(CFLAGS) -o libiris.la $+ -rpath /usr/lib -lm -lpthread
+	libtool --mode link gcc $(CFLAGS) -o libiris.la $+ -rpath /usr/lib -lm -lpthread $(LDFLAGS)
 	mv .libs/libiris.so.0.0.0 $@
 send_iris: iris.o send_iris.o
 iriscfg:   iris.o iriscfg.o
@@ -76,6 +77,7 @@ t/10-read.t: t/10-read.t.o iris.o
 t/15-bind.t: t/15-bind.t.o iris.o
 t/20-cli.t: t/20-cli.t.o iris.o
 t/30-client.t: t/30-client.t.c iris.o
+t/31-deadline.t: t/31-deadline.t.c iris.o
 t/45-net-server.t: t/45-net-server.t.o iris.o
 t/45-net-client.t: t/45-net-client.t.o iris.o
 t/46-recv.t: t/46-recv.t.o iris.o

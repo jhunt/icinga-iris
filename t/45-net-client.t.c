@@ -65,6 +65,7 @@ int main(int argc, char **argv)
 	size_t len;
 	time_t now;
 
+	memset(&pdu, '0', sizeof(struct pdu));
 	strcpy(pdu.host,    "host");
 	strcpy(pdu.service, "service");
 	strcpy(pdu.output,  "output");

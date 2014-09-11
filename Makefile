@@ -18,6 +18,7 @@ endif
 
 
 test_runners := $(subst .t.c,.t,$(shell ls -1 t/*.t.c))
+test_runners += $(subst .t.pl,.t,$(shell ls -1 t/*.t.pl))
 no_lcov_c := test/*.t
 
 
@@ -84,3 +85,5 @@ t/46-recv.t: t/46-recv.t.o iris.o
 t/50-segv.t: t/50-segv.t.c iris.o
 t/60-config.t: t/60-config.t.o iris.o
 t/70-stressmem.t: t/70-stressmem.t.o iris.o
+t/99-valgrind.t: t/99-valgrind.t.pl
+	cp t/99-valgrind.t.pl t/99-valgrind.t

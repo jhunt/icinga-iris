@@ -24,6 +24,7 @@ int child_main(int fd)
 	struct pdu pdu;
 	time_t now;
 
+	memset(&pdu, 0, sizeof(struct pdu));
 	strcpy(pdu.host,    "a.host");
 	strcpy(pdu.service, "b.service");
 	strcpy(pdu.output,  "output");
@@ -33,6 +34,7 @@ int child_main(int fd)
 		time(&now); pdu.ts = (uint32_t)now;
 		if (pdu_pack(&pdu) != 0) return 2;
 
+		pdu_dump(&pdu);
 		len = pdu_write(fd, (uint8_t*)&pdu);
 		if (len < sizeof(pdu)) return 3;
 

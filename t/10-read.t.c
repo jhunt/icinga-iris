@@ -1,10 +1,15 @@
 #include "tap.c"
+#include <stdlib.h>
 #include "../iris.h"
 #include "dummy-calls.c"
 
 int main(int argc, char **argv)
 {
 	plan_no_plan();
+	if (getenv("VALGRIND_TEST")) {
+		skip(1, "not run under valgrind tests");
+		return exit_status();
+	}
 
 	int pipefd[2];
 	ssize_t len;

@@ -7,6 +7,10 @@
 int main(int argc, char **argv)
 {
 	plan_no_plan();
+	if (getenv("VALGRIND_TEST")) {
+		skip(1, "not run under valgrind tests");
+		return exit_status();
+	}
 
 	int pipefd[2];
 	ok(pipe(pipefd) == 0, "[sanity] piped properly");

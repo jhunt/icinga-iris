@@ -3,11 +3,13 @@
 #include "dummy-calls.c"
 #include <unistd.h>
 
+extern int MAX_LIFETIME;
 int main(int argc, char **argv)
 {
 	plan_no_plan();
 
 	struct client *c;
+	MAX_LIFETIME = 2;
 
 	ok(client_init(3) == 3, "allocated enough space for 3 client objects");
 	ok(!client_find(3), "no client at fd 3");
@@ -17,8 +19,8 @@ int main(int argc, char **argv)
 	clients_purge();
 	ok(client_find(3), "found client for fd 3 (after immediate purge)");
 
-	diag("sleeping for 22 seconds to run out the deadline clock");
-	sleep(22);
+	diag("sleeping for 3 seconds to run out the deadline clock");
+	sleep(3);
 
 	ok(client_find(3), "found expired client (before purge)");
 	clients_purge();

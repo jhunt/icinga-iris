@@ -216,8 +216,11 @@ ssize_t pdu_write(int fd, const uint8_t *buf)
 	ssize_t n, len = 4300;
 	const uint8_t *off = buf;
 
+	errno = EINVAL;
+	if (!buf) return -1;
+
 	errno = 0;
-	while ((n = write(fd, off, len)) > 0) {
+	while (len > 0 && (n = write(fd, off, len)) > 0) {
 		 off += n; len -= n;
 	}
 	return n < 0 ? n : off - buf;
@@ -235,18 +238,18 @@ void pdu_dump(const struct pdu *pdu)
 	}
 
 	if (fork() == 0) {
-		close(pfd[0]);
-		dup2(pfd[1], 0);
+		close(pfd[1]);
+		dup2(pfd[0], 0);
 		//dup2(2,1); // 1>&2
 
-		execl("/usr/bin/od", "-a", NULL);
+		execl("/usr/bin/od", "od", "-a", NULL);
 		fprintf(stderr, "Failed to dump PDU via `/usr/bin/od -a': %s",
 				strerror(errno));
 		exit(42);
 	}
-	close(pfd[1]);
-	write(pfd[0], pdu, sizeof(struct pdu));
 	close(pfd[0]);
+	write(pfd[1], pdu, sizeof(struct pdu));
+	close(pfd[1]);
 }
 
 int pdu_pack(struct pdu *pdu)
@@ -368,6 +371,7 @@ int net_poller(int sockfd)
 {
 	int epfd;
 	struct epoll_event ev;
+	memset(&ev, 0, sizeof(ev));
 
 	if ((epfd = epoll_create(42)) < 0) return -1;
 
@@ -381,7 +385,7 @@ int net_accept(int sockfd, int epfd)
 {
 	struct sockaddr_in in_addr;
 	socklen_t in_len = sizeof(in_addr);
-	struct epoll_event ev;
+	struct epoll_event ev = {0};
 	struct client *client;
 	int connfd;
 
@@ -510,7 +514,7 @@ void mainloop(int sockfd, int epfd)
 
 	for (;;) {
 		vdebug("going into epoll_wait loop");
-		n = epoll_wait(epfd, events, sizeof(events), -1);
+		n = epoll_wait(epfd, events, IRIS_EPOLL_MAXFD, -1);
 		vdebug("epoll gave us %d fds to work with", n);
 
 		for (i = 0; i < n; i++) {

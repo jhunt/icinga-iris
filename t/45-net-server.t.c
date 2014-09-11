@@ -24,6 +24,7 @@ int child_main(int rc)
 	fd = net_connect(NET_HOST, atoi(NET_PORT));
 	if (fd < 0) return 1;
 
+	memset(&pdu, 0, sizeof(struct pdu));
 	strcpy(pdu.host,    "host");
 	strcpy(pdu.service, "service");
 	strcpy(pdu.output,  "output");

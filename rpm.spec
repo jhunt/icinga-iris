@@ -2,13 +2,16 @@ Name: icinga-iris
 Version: 1.1.8
 Release: %{_release}
 License: Proprietary
-Source: %{name}-%{version}.tar.gz
+Source: %{_source0}
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 
 #####################################################################
 
 Summary: Fast passive service check acceptor for Icinga
 Group: Application/System
+
+BuildRequires: gcc
+BuildRequires: libtool
 
 Requires: icinga
 
@@ -63,6 +66,9 @@ rm -rf $RPM_BUILD_ROOT
 * Fri Sep 12 2014 James Hunt <jhunt@synacor.com> 1.1.8-1
 - Client deadlining to prune stalled connections
 - Memory init fixes to make vbalgrind happier
+
+* Thu Jun 05 2014 Dan Molik <dmolik@synacor.com> 1.1.7-12
+- Cutover to rpm-builder
 
 * Wed Mar 05 2014 James Hunt <jhunt@synacor.com> 1.1.7-1
 - Update error handling from syscalls

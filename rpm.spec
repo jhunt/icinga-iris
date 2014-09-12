@@ -1,5 +1,5 @@
 Name: icinga-iris
-Version: 1.1.7
+Version: 1.1.8
 Release: %{_release}
 License: Proprietary
 Source: %{name}-%{version}.tar.gz
@@ -60,6 +60,10 @@ rm -rf $RPM_BUILD_ROOT
 %{_bindir}/send_iris
 
 %changelog
+* Fri Sep 12 2014 James Hunt <jhunt@synacor.com> 1.1.8-1
+- Client deadlining to prune stalled connections
+- Memory init fixes to make vbalgrind happier
+
 * Wed Mar 05 2014 James Hunt <jhunt@synacor.com> 1.1.7-1
 - Update error handling from syscalls
 - Move over to syslog for all log traffic (ITM-3116)

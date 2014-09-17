@@ -343,6 +343,20 @@ int net_bind(const char *host, const char *port)
 			continue;
 		}
 
+		int fdflags = fcntl(fd, F_GETFD, 0);
+		if (fdflags < 0) {
+			syslog(LOG_ERROR, "fcntl failed on the IRIS socket: %s", strerror(errno));
+			close(fd);
+			fd = -1;
+			continue;
+		}
+		if (fcntl(fd, F_SETFD, fdflags|FD_CLOEXEC) != 0) {
+			syslog(LOG_ERROR, "failed to set close-on-exec for the IRIS socket: %s", strerror(errno));
+			close(fd);
+			fd = -1;
+			continue;
+		}
+
 		if (bind(fd, res->ai_addr, res->ai_addrlen) == 0) {
 			// bound; stop trying addrinfo results!
 			break;

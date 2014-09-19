@@ -63,6 +63,17 @@ int nonblocking(int fd)
 	return 0;
 }
 
+int close_on_exec(int fd)
+{
+	int flags = fcntl(fd, F_GETFL, 0);
+	if (flags < 0) return -1;
+
+	flags |= FD_CLOEXEC;
+	if (fcntl(fd, F_SETFL, flags) < 0) return -1;
+
+	return 0;
+}
+
 int server_init(struct server *s)
 {
 	if (!s) {
@@ -343,20 +354,6 @@ int net_bind(const char *host, const char *port)
 			continue;
 		}
 
-		int fdflags = fcntl(fd, F_GETFD, 0);
-		if (fdflags < 0) {
-			syslog(LOG_ERROR, "fcntl failed on the IRIS socket: %s", strerror(errno));
-			close(fd);
-			fd = -1;
-			continue;
-		}
-		if (fcntl(fd, F_SETFD, fdflags|FD_CLOEXEC) != 0) {
-			syslog(LOG_ERROR, "failed to set close-on-exec for the IRIS socket: %s", strerror(errno));
-			close(fd);
-			fd = -1;
-			continue;
-		}
-
 		if (bind(fd, res->ai_addr, res->ai_addrlen) == 0) {
 			// bound; stop trying addrinfo results!
 			break;
@@ -369,6 +366,11 @@ int net_bind(const char *host, const char *port)
 
 	if (nonblocking(fd) != 0) {
 		syslog(LOG_ERROR, "failed to set socket non-blocking: %s", strerror(errno));
+		close(fd);
+		return -1;
+	}
+	if (close_on_exec(fd) != 0) {
+		syslog(LOG_ERROR, "failed to set socket close-on-exec: %s", strerror(errno));
 		close(fd);
 		return -1;
 	}

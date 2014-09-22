@@ -80,6 +80,11 @@ int iris_call_recv_data(int fd)
 	return recv_data(fd);
 }
 
+int iris_call_register_fd(int fd)
+{
+	return register_fd(fd);
+}
+
 void* iris_daemon(void *udata)
 {
 	struct server s;

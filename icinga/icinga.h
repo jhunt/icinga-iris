@@ -404,6 +404,10 @@ typedef struct check_stats_struct{
 	time_t last_update;
         }check_stats;
 
+int init_registered_fds(void);
+int register_fd(int fd);
+int deregister_fd(int fd);
+int close_registered_fds(void);
 
 /******************* THREAD STUFF ********************/
 

@@ -11,6 +11,7 @@ time_t MAX_LIFETIME = 20;
 
 extern void iris_call_submit_result(struct pdu *pdu);
 extern int iris_call_recv_data(int fd);
+extern int iris_call_register_fd(int fd);
 
 unsigned long CRC32[256] = {0};
 
@@ -380,6 +381,7 @@ int net_bind(const char *host, const char *port)
 		return -1;
 	}
 
+	iris_call_register_fd(fd);
 	return fd;
 }
 
